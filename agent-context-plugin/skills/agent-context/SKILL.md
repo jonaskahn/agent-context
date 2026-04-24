@@ -2,7 +2,7 @@
 name: agent-context
 description: Generate evidence-driven context files (AGENTS.md, CLAUDE.md, docs/agents/, .claude/settings.json) from Understand-Anything knowledge graphs. Use when the user runs /agent-context, asks to "bootstrap agent context", "generate AGENTS.md", "initialize Claude Code context", or "make this repo AI-agent-ready". Requires understand-anything/knowledge-graph.json — produced by running /understand on the target repo first.
 argument-hint: [ "[path] [--force] [--dry-run] [--with-ci]" ]
-version: 0.0.3
+version: 0.0.4
 ---
 
 # /agent-context
@@ -16,7 +16,7 @@ Mock stance. If the graph does not support a section, omit the section entirely 
 Reference files (read on-demand, not required for normal execution):
 
 - `references/SCHEMAS.md` — full graph schemas, 20-rule lint spec, sample data
-- `references/TEMPLATES.md` — verbatim output file templates numbered 1–18 matching write order
+- `references/TEMPLATES.md` — verbatim output file templates numbered 1–19 matching write order
 
 ---
 
@@ -44,6 +44,9 @@ All variables set during execution. Phases that set each variable are noted.
 | `layersByNodeId`         | Map            | Phase 2 | node.id → layer name                                                                                      |
 | `nodesByLayer`           | Map            | Phase 2 | layer name → node.id[]                                                                                    |
 | `COMMANDS`               | dict           | Phase 3 | keys: install, dev, test, lint, build (any subset)                                                        |
+| `FRAMEWORK`              | string         | Phase 3 | Primary framework name (e.g. "Nuxt.js", "FastAPI") or "unknown" if manifest found but no match            |
+| `LANG`                   | string         | Phase 3 | Primary language (e.g. "TypeScript/JavaScript", "Python", "Rust", "Go") or empty if no manifest found     |
+| `PROJECT_SUMMARY`        | string         | Phase 3 | One-line project summary from knowledge-graph project.description or first tour step (120 chars max)      |
 | `NON_OBVIOUS`            | string[]       | Phase 4 | Up to 5 phrased bullet strings                                                                            |
 | `CONVENTIONS_DIRECTIVES` | map or null    | Phase 4 | Extracted directives from CONVENTIONS.md, grouped by category (safety, naming, patterns, workflow, other) |
 
@@ -273,6 +276,74 @@ Set `COMMANDS.install` to the inferred command.
 
 `COMMANDS` is empty. Omit AGENTS.md §3 entirely.
 
+### Framework and language detection
+
+Run this step using whichever manifest was found above (or "none" if none found). Set `FRAMEWORK`, `LANG`, and
+`PROJECT_SUMMARY`.
+
+**`LANG`** — infer from which manifest was found:
+
+- `package.json` → `"TypeScript/JavaScript"`
+- `pyproject.toml` → `"Python"`
+- `Cargo.toml` → `"Rust"`
+- `go.mod` → `"Go"`
+- None found → `""` (empty — omit Stack line from architecture.md)
+
+**`FRAMEWORK`** — scan the manifest found above for these keys (check in order listed, use first match):
+
+`package.json` — inspect `dependencies` and `devDependencies` keys:
+
+| Key present               | FRAMEWORK   |
+|---------------------------|-------------|
+| `nuxt` or any `@nuxtjs/*` | `"Nuxt.js"` |
+| `next`                    | `"Next.js"` |
+| `@nestjs/core`            | `"NestJS"`  |
+| `astro`                   | `"Astro"`   |
+| `svelte`                  | `"Svelte"`  |
+| `solid-js`                | `"SolidJS"` |
+| `hono`                    | `"Hono"`    |
+| `fastify`                 | `"Fastify"` |
+| `express`                 | `"Express"` |
+| `react`                   | `"React"`   |
+| `vue`                     | `"Vue.js"`  |
+| None of the above         | `"unknown"` |
+
+`pyproject.toml` — inspect `[tool.poetry.dependencies]` or `[project.dependencies]`:
+
+| Key present       | FRAMEWORK    |
+|-------------------|--------------|
+| `fastapi`         | `"FastAPI"`  |
+| `django`          | `"Django"`   |
+| `litestar`        | `"Litestar"` |
+| `flask`           | `"Flask"`    |
+| None of the above | `"unknown"`  |
+
+`Cargo.toml` — inspect `[dependencies]`:
+
+| Key present       | FRAMEWORK     |
+|-------------------|---------------|
+| `actix-web`       | `"Actix Web"` |
+| `axum`            | `"Axum"`      |
+| `rocket`          | `"Rocket"`    |
+| None of the above | `"unknown"`   |
+
+`go.mod` — inspect `require` block:
+
+| Module present             | FRAMEWORK   |
+|----------------------------|-------------|
+| `github.com/gin-gonic/gin` | `"Gin"`     |
+| `github.com/labstack/echo` | `"Echo"`    |
+| `github.com/gofiber/fiber` | `"Fiber"`   |
+| None of the above          | `"unknown"` |
+
+No manifest → `FRAMEWORK = ""` (empty).
+
+**`PROJECT_SUMMARY`** — derive from KNOWLEDGE_GRAPH:
+
+1. If `project.description` is non-empty → use it (truncate to 120 chars at word boundary).
+2. Else if `tour` is non-empty → use `tour[0].description` (truncate to 120 chars at word boundary).
+3. Else → `""` (empty).
+
 ---
 
 ## Phase 4 — Convention mining
@@ -404,7 +475,7 @@ If zero directives were extracted: set `CONVENTIONS_DIRECTIVES = null`.
 | `.aider.conf.yml` exists                                         | Merge: append to `read` list if not present.                                                                                                                                                                                                                                              |
 | `DRY_RUN=true`                                                   | For all files including merge targets: compute final content (reading existing files for merges), print between `===== FILE: <path> =====` separators, write nothing.                                                                                                                     |
 
-### Write order (process sequentially, 1–18)
+### Write order (process sequentially, 1–19)
 
 | #  | File                                            | Condition                               | Template                                                               |
 |----|-------------------------------------------------|-----------------------------------------|------------------------------------------------------------------------|
@@ -414,18 +485,19 @@ If zero directives were extracted: set `CONVENTIONS_DIRECTIVES = null`.
 | 4  | `docs/agents/conventions.md`                    | only if `EXISTING_CONVENTIONS` not null | TEMPLATES.md §9                                                        |
 | 5  | `docs/agents/patterns.md`                       | always                                  | TEMPLATES.md §6                                                        |
 | 6  | `docs/agents/architecture.md`                   | always                                  | TEMPLATES.md §5                                                        |
-| 7  | `.claude/settings.json`                         | always (merge)                          | TEMPLATES.md §4                                                        |
-| 8  | `.gitignore`                                    | always (append)                         | —                                                                      |
-| 9  | `CLAUDE.local.md`                               | always                                  | TEMPLATES.md §3                                                        |
-| 10 | `CLAUDE.md`                                     | always                                  | TEMPLATES.md §2                                                        |
-| 11 | `AGENTS.md`                                     | always                                  | TEMPLATES.md §1                                                        |
-| 12 | `.cursor/rules/agents.mdc`                      | always                                  | TEMPLATES.md §12                                                       |
-| 13 | `.github/copilot-instructions.md`               | always                                  | TEMPLATES.md §13                                                       |
-| 14 | `.codex/instructions.md`                        | always                                  | TEMPLATES.md §14                                                       |
-| 15 | `CONVENTIONS.md`                                | only if `EXISTING_CONVENTIONS` is null  | TEMPLATES.md §15                                                       |
-| 16 | `.aider.conf.yml`                               | always (merge if exists)                | TEMPLATES.md §16                                                       |
-| 17 | `.github/workflows/agent-context-freshness.yml` | only if `WITH_CI=true`                  | TEMPLATES.md §17                                                       |
-| 18 | `hooks/check-freshness.sh`                      | only if `WITH_CI=true`                  | TEMPLATES.md §18 (chmod +x)                                            |
+| 7  | `docs/agents/flow.md`                           | always                                  | TEMPLATES.md §19                                                       |
+| 8  | `.claude/settings.json`                         | always (merge)                          | TEMPLATES.md §4                                                        |
+| 9  | `.gitignore`                                    | always (append)                         | —                                                                      |
+| 10 | `CLAUDE.local.md`                               | always                                  | TEMPLATES.md §3                                                        |
+| 11 | `CLAUDE.md`                                     | always                                  | TEMPLATES.md §2                                                        |
+| 12 | `AGENTS.md`                                     | always                                  | TEMPLATES.md §1                                                        |
+| 13 | `.cursor/rules/agents.mdc`                      | always                                  | TEMPLATES.md §12                                                       |
+| 14 | `.github/copilot-instructions.md`               | always                                  | TEMPLATES.md §13                                                       |
+| 15 | `.codex/instructions.md`                        | always                                  | TEMPLATES.md §14                                                       |
+| 16 | `CONVENTIONS.md`                                | only if `EXISTING_CONVENTIONS` is null  | TEMPLATES.md §15                                                       |
+| 17 | `.aider.conf.yml`                               | always (merge if exists)                | TEMPLATES.md §16                                                       |
+| 18 | `.github/workflows/agent-context-freshness.yml` | only if `WITH_CI=true`                  | TEMPLATES.md §17                                                       |
+| 19 | `hooks/check-freshness.sh`                      | only if `WITH_CI=true`                  | TEMPLATES.md §18 (chmod +x)                                            |
 
 ### AGENTS.md — full specification
 
@@ -500,7 +572,8 @@ MUST/MUST NOT prefixes are permitted within this section only (exception to Rule
 
 - Tagline: `**AGENTS.md is the kernel. Below it, read on demand.**`
 - Bullets (one per emitted docs/agents/ file):
-    - Always: `- docs/agents/architecture.md — layer map, data flow, entry points.`
+    - Always: `- docs/agents/architecture.md — project overview, stack, quick start, layer map.`
+    - Always: `- docs/agents/flow.md — entry points, business flows, execution paths.`
     - Always: `- docs/agents/patterns.md — recurring patterns with file:line exemplars.`
     - Only if `DOMAIN_QUALITY` is "high" or "mixed": `- docs/agents/glossary.md — canonical vocabulary.`
     - Only if `EXISTING_CONVENTIONS` not null: `- docs/agents/conventions.md — AI-targeted coding directives.`
@@ -549,10 +622,23 @@ template contains the structural scaffold; derivation rules are specified there 
 
 **docs/agents/architecture.md** (TEMPLATES.md §5):
 
+- Project section: `PROJECT_SUMMARY`, `FRAMEWORK`, `LANG` (set in Phase 3).
+- Quick start block: `COMMANDS` dict (set in Phase 3). Omit block if COMMANDS is empty.
 - Layer map: one H3 per layer, files sorted by `importsIn` count desc, capped at 10 per layer.
 - Guided tour: H3 per tour step in order, description + nodeId file paths.
 - Entry points: nodes with 0 incoming `imports` edges AND >=1 outgoing edge.
 - Cross-layer deps: `imports` edges crossing layers, grouped by (source_layer → target_layer), counted.
+
+**docs/agents/flow.md** (TEMPLATES.md §19):
+
+- If `DOMAIN_QUALITY` is "high" or "mixed": render Business flows section.
+    - `domains_with_flows`: domain-type nodes with >=1 outgoing `contains_flow` edge, sorted by outgoing-edge count
+      desc.
+    - For each domain: name, summary, then each flow with `domainMeta.entryPoint`, `domainMeta.entryType`, and summary (
+      if non-generic).
+    - If no domain has flows despite high/mixed quality: fall back to entry-points section.
+- Otherwise (`DOMAIN_QUALITY` is "low", "missing", or `DOMAIN_GRAPH` is null): render entry-points fallback only.
+    - Entry points: same set as architecture.md (0 incoming `imports` edges AND >=1 outgoing edge).
 
 **docs/agents/patterns.md** (TEMPLATES.md §6):
 
@@ -657,6 +743,7 @@ Files:
   ✓/⏭ CLAUDE.local.md                 (3 lines)
   ✓/⏭ .claude/settings.json           [created | merged; <N> new deny entries]
   ✓/⏭ docs/agents/architecture.md      (<N> lines)
+  ✓/⏭ docs/agents/flow.md              (<N> lines)
   ✓/⏭ docs/agents/patterns.md          (<N> lines)
   ✓/⏭ docs/agents/glossary.md          (<N> lines)
   [✓/⏭ docs/agents/conventions.md     (<N> lines)]

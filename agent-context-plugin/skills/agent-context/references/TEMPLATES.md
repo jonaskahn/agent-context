@@ -110,7 +110,8 @@ Working if: agents stop asking "where does X live?", hook denials are respected,
     - Format: `### Project-specific\n` followed by one `- <directive>` line per qualifying entry.
     - If no qualifying entries after deduplication: emit nothing (no heading, no blank line).
 - `{{docs_agent_bullets}}` = one bullet per `docs/agents/` file emitted:
-    - Always: `- docs/agents/architecture.md — layer map, data flow, entry points.`
+    - Always: `- docs/agents/architecture.md — project overview, stack, quick start, layer map.`
+    - Always: `- docs/agents/flow.md — entry points, business flows, execution paths.`
     - Always: `- docs/agents/patterns.md — recurring patterns with file:line exemplars.`
     - Only if `DOMAIN_QUALITY` is "high" or "mixed": `- docs/agents/glossary.md — canonical vocabulary.`
     - Only if `EXISTING_CONVENTIONS` is not null: `- docs/agents/conventions.md — AI-targeted coding directives.`
@@ -195,7 +196,24 @@ Add personal Claude Code preferences here. This file is not committed.
 ```markdown
 # Architecture
 
-Deep context for the {{project_name}} codebase. On-demand reading — AGENTS.md §6 links here.
+## Project
+
+**{{project_name}}**{{if PROJECT_SUMMARY}} — {{PROJECT_SUMMARY}}{{/if}}
+
+{{if LANG or FRAMEWORK}}
+**Stack**: {{FRAMEWORK}}{{if LANG}} · {{LANG}}{{/if}}
+{{/if}}
+
+{{if COMMANDS is non-empty}}
+## Quick start
+
+```bash
+{{if COMMANDS.install}}{{COMMANDS.install}}        # install dependencies{{/if}}
+{{if COMMANDS.dev}}{{COMMANDS.dev}}        # run locally{{else if COMMANDS.build}}{{COMMANDS.build}}        # build{{/if}}
+{{if COMMANDS.test}}{{COMMANDS.test}}        # run tests{{/if}}
+```
+
+{{/if}}
 
 ## Layer map
 
@@ -208,11 +226,12 @@ Deep context for the {{project_name}} codebase. On-demand reading — AGENTS.md 
 Files ({{layer.node_count}} total, showing top {{min(10, layer.node_count)}} by inbound imports):
 
 {{#each node in layer.nodes_sorted_by_in_degree}}
+
 - `{{node.filePath}}`{{if node.summary is non-generic}} — {{node.summary}}{{/if}}
-{{/each}}
-{{if layer.node_count > 10}}
+  {{/each}}
+  {{if layer.node_count > 10}}
 - ... and {{layer.node_count - 10}} more.
-{{/if}}
+  {{/if}}
 
 {{/each}}
 
@@ -225,8 +244,9 @@ Files ({{layer.node_count}} total, showing top {{min(10, layer.node_count)}} by 
 {{step.description}}
 
 {{#each nodeId in step.nodeIds}}
+
 - `{{nodesById[nodeId].filePath}}`
-{{/each}}
+  {{/each}}
 
 {{/each}}
 
@@ -235,18 +255,24 @@ Files ({{layer.node_count}} total, showing top {{min(10, layer.node_count)}} by 
 Files with no incoming imports — the surfaces the codebase exposes to the outside:
 
 {{#each node in entry_points}}
+
 - `{{node.filePath}}`{{if node.summary is non-generic}} — {{node.summary}}{{/if}}
-{{/each}}
+  {{/each}}
 
 ## Cross-layer dependencies
 
 {{#each (source_layer, target_layer, count) in cross_layer_imports}}
+
 - {{source_layer}} → {{target_layer}}: {{count}} imports
-{{/each}}
+  {{/each}}
+
 ```
 
 ### Derivation rules
 
+- **Project summary** (`{{PROJECT_SUMMARY}}`): use `project.description` from knowledge-graph.json if non-empty; else use the first tour step's `description` truncated to 120 characters; else omit (no dash or summary text).
+- **Stack line**: emit only when at least one manifest was found. `FRAMEWORK` and `LANG` are set in Phase 3. If FRAMEWORK is "unknown" and no LANG was detected, omit the Stack line entirely.
+- **Quick start block**: omit the entire block if `COMMANDS` is empty. Omit individual lines for absent keys. Use `COMMANDS.dev` for the "run locally" line; fall back to `COMMANDS.build`; if neither set, omit that line.
 - **Layer map**: sort file nodes within each layer by `importsIn` count (in-degree) descending. Cap at 10 per layer.
 - **Entry points**: nodes with 0 incoming `imports` edges AND >=1 outgoing edge of any type.
 - **Non-generic summary test**: summary is generic if it starts with `"Source file "` OR ends with
@@ -656,3 +682,62 @@ exit 0
 ```
 
 Make the script executable (`chmod +x`) when writing it.
+
+---
+
+## 19. docs/agents/flow.md
+
+```markdown
+# Application Flows
+
+How execution enters {{project_name}}. Trace-oriented — shows where external requests land first.
+
+{{if DOMAIN_QUALITY == "high" or "mixed" and domains_with_flows is non-empty}}
+
+## Business flows
+
+Derived from the domain model. Each flow entry shows the first file touched by an external trigger.
+
+{{#each domain in domains_with_flows sorted by outgoing_edge_count desc}}
+
+### {{domain.name}}
+
+{{domain.summary}}
+
+{{#each flow in domain.flows}}
+
+#### {{flow.name}}
+
+- Entry point: `{{flow.domainMeta.entryPoint}}`
+- Trigger: {{flow.domainMeta.entryType}}
+{{if flow.summary is non-generic}}- Summary: {{flow.summary}}{{/if}}
+
+{{/each}}
+{{/each}}
+
+{{else}}
+
+## Entry points
+
+Domain model unavailable or has no flows — entry points inferred from the import graph (files with no inbound imports).
+
+{{#each node in entry_points}}
+- `{{node.filePath}}`{{if node.summary is non-generic}} — {{node.summary}}{{/if}}
+{{/each}}
+
+*Run `/understand-domain` then `/agent-context --force` to generate flow data from the domain model.*
+
+{{/if}}
+```
+
+### Derivation rules
+
+- **`domains_with_flows`**: domain-type nodes in `DOMAIN_GRAPH` that have >=1 outgoing `contains_flow` edge. Sort by
+  total outgoing-edge count descending (same ordering as glossary clusters). Skip domains with 0 flows.
+- **`domain.flows`**: flow-type nodes reachable via `contains_flow` edges from the domain node.
+- **Non-generic summary test**: same rule as architecture.md — generic if starts with `"Source file "` or ends with
+  `"— function in this module."`.
+- **Fallback condition**: use the entry-points fallback section when `DOMAIN_QUALITY` is "low", "missing", or
+  `DOMAIN_GRAPH` is null, OR when `DOMAIN_QUALITY` is "high"/"mixed" but no domain has any flows.
+- **Entry points** (fallback): same set as architecture.md — file nodes with 0 incoming `imports` edges AND >=1 outgoing
+  edge.

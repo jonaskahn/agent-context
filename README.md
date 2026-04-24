@@ -77,7 +77,8 @@ your-repo/
 ├── .aider.conf.yml          ◄── 🔄 Aider config (points to CONVENTIONS.md)
 │
 └── docs/agents/             ◄── 📚 on-demand depth (loaded only when referenced)
-    ├── architecture.md           layer map · guided tour · entry points · cross-layer deps
+    ├── architecture.md           project overview · stack · quick start · layer map · guided tour
+    ├── flow.md                   entry points · business flows · execution paths
     ├── patterns.md               complexity hotspots · function exemplars · hub imports
     ├── glossary.md               domain vocabulary from the domain graph (or stub)
     ├── conventions.md            team coding standards (if CONVENTIONS.md exists)
@@ -111,7 +112,7 @@ Then, inside the repo you want to generate context for:
 /understand
 ```
 
-This produces `understand-anything/knowledge-graph.json`. For a populated glossary, also run:
+This produces `understand-anything/knowledge-graph.json`. For a populated glossary and business flow map, also run:
 
 ```shell
 /understand-domain
@@ -130,7 +131,7 @@ This produces `understand-anything/knowledge-graph.json`. For a populated glossa
 /agent-context
 ```
 
-All ten output files are written in one pass.
+All output files are written in one pass.
 
 ## 🔑 AGENTS.md — the always-on kernel
 
@@ -157,9 +158,13 @@ These files are never loaded automatically. They exist to be referenced — `@do
 prompt, or linked from `AGENTS.md §6`. This keeps the always-on token budget low while still making deep context
 available when a task actually needs it.
 
-- **`architecture.md`** — every layer mapped with its files sorted by how widely they are imported across the codebase.
-  Entry points (zero incoming imports) are called out separately. Cross-layer dependency counts show where the
-  architecture has coupling.
+- **`architecture.md`** — project name, one-line summary, detected framework and language, quick-start commands, then
+  every layer mapped with files sorted by inbound-import count. Entry points (zero incoming imports) called out
+  separately. Cross-layer dependency counts show where the architecture has coupling.
+
+- **`flow.md`** — where execution enters the codebase. When a domain graph is present and has flow nodes, each business
+  flow is listed with its trigger type and entry-point file. Without domain data, falls back to the import-graph entry
+  points and prompts you to run `/understand-domain`.
 
 - **`patterns.md`** — files the analyser flagged as `complex` with their function counts. Representative functions per
   layer with `file:line` references. The ten most-imported "hub" files whose changes ripple everywhere.
@@ -201,7 +206,8 @@ Files:
   ✓ CLAUDE.md                      (1 line)
   ✓ CLAUDE.local.md                (3 lines)
   ✓ .claude/settings.json          (created)
-  ✓ docs/agents/architecture.md     (287 lines)
+  ✓ docs/agents/architecture.md     (301 lines)
+  ✓ docs/agents/flow.md             (38 lines)
   ✓ docs/agents/patterns.md         (156 lines)
   ✓ docs/agents/glossary.md         (48 lines; 6 entries)
   ✓ docs/agents/testing.md          (22 lines)
