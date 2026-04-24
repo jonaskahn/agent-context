@@ -2,7 +2,7 @@
 name: agent-context
 description: Generate evidence-driven context files (AGENTS.md, CLAUDE.md, docs/agents/, .claude/settings.json) from Understand-Anything knowledge graphs. Use when the user runs /agent-context, asks to "bootstrap agent context", "generate AGENTS.md", "initialize Claude Code context", or "make this repo AI-agent-ready". Requires understand-anything/knowledge-graph.json — produced by running /understand on the target repo first.
 argument-hint: [ "[path] [--force] [--dry-run] [--with-ci]" ]
-version: 0.0.2
+version: 0.0.3
 ---
 
 # /agent-context
@@ -24,27 +24,28 @@ Reference files (read on-demand, not required for normal execution):
 
 All variables set during execution. Phases that set each variable are noted.
 
-| Variable               | Type           | Set in  | Description                                        |
-|------------------------|----------------|---------|----------------------------------------------------|
-| `PROJECT_ROOT`         | string         | Phase 0 | Absolute path to target repo                       |
-| `FORCE`                | bool           | Phase 0 | Overwrite existing files                           |
-| `DRY_RUN`              | bool           | Phase 0 | Print content, write nothing                       |
-| `WITH_CI`              | bool           | Phase 0 | Generate CI workflow and hook                      |
-| `IS_GIT_REPO`          | bool           | Phase 0 | Whether PROJECT_ROOT is a git repo                 |
-| `KNOWLEDGE_GRAPH`      | object         | Phase 1 | Parsed knowledge-graph.json                        |
-| `DOMAIN_GRAPH`         | object or null | Phase 1 | Parsed domain-graph.json or null                   |
-| `GRAPH_STALE`          | bool           | Phase 1 | HEAD != graph commit hash                          |
-| `DOMAIN_QUALITY`       | enum           | Phase 1 | "high", "mixed", "low", or "missing"               |
-| `EXISTING_CONVENTIONS` | string or null | Phase 1 | Content of existing CONVENTIONS.md                 |
-| `nodesById`            | Map            | Phase 2 | node.id → Node                                     |
-| `functionsByFile`      | Map            | Phase 2 | filePath → function Node[]                         |
-| `importsOut`           | Map            | Phase 2 | node.id → target id[]                              |
-| `importsIn`            | Map            | Phase 2 | node.id → source id[]                              |
-| `containsOut`          | Map            | Phase 2 | file node.id → function node.id[]                  |
-| `layersByNodeId`       | Map            | Phase 2 | node.id → layer name                               |
-| `nodesByLayer`         | Map            | Phase 2 | layer name → node.id[]                             |
-| `COMMANDS`             | dict           | Phase 3 | keys: install, dev, test, lint, build (any subset) |
-| `NON_OBVIOUS`          | string[]       | Phase 4 | Up to 5 phrased bullet strings                     |
+| Variable                 | Type           | Set in  | Description                                                                                               |
+|--------------------------|----------------|---------|-----------------------------------------------------------------------------------------------------------|
+| `PROJECT_ROOT`           | string         | Phase 0 | Absolute path to target repo                                                                              |
+| `FORCE`                  | bool           | Phase 0 | Overwrite existing files                                                                                  |
+| `DRY_RUN`                | bool           | Phase 0 | Print content, write nothing                                                                              |
+| `WITH_CI`                | bool           | Phase 0 | Generate CI workflow and hook                                                                             |
+| `IS_GIT_REPO`            | bool           | Phase 0 | Whether PROJECT_ROOT is a git repo                                                                        |
+| `KNOWLEDGE_GRAPH`        | object         | Phase 1 | Parsed knowledge-graph.json                                                                               |
+| `DOMAIN_GRAPH`           | object or null | Phase 1 | Parsed domain-graph.json or null                                                                          |
+| `GRAPH_STALE`            | bool           | Phase 1 | HEAD != graph commit hash                                                                                 |
+| `DOMAIN_QUALITY`         | enum           | Phase 1 | "high", "mixed", "low", or "missing"                                                                      |
+| `EXISTING_CONVENTIONS`   | string or null | Phase 1 | Content of existing CONVENTIONS.md                                                                        |
+| `nodesById`              | Map            | Phase 2 | node.id → Node                                                                                            |
+| `functionsByFile`        | Map            | Phase 2 | filePath → function Node[]                                                                                |
+| `importsOut`             | Map            | Phase 2 | node.id → target id[]                                                                                     |
+| `importsIn`              | Map            | Phase 2 | node.id → source id[]                                                                                     |
+| `containsOut`            | Map            | Phase 2 | file node.id → function node.id[]                                                                         |
+| `layersByNodeId`         | Map            | Phase 2 | node.id → layer name                                                                                      |
+| `nodesByLayer`           | Map            | Phase 2 | layer name → node.id[]                                                                                    |
+| `COMMANDS`               | dict           | Phase 3 | keys: install, dev, test, lint, build (any subset)                                                        |
+| `NON_OBVIOUS`            | string[]       | Phase 4 | Up to 5 phrased bullet strings                                                                            |
+| `CONVENTIONS_DIRECTIVES` | map or null    | Phase 4 | Extracted directives from CONVENTIONS.md, grouped by category (safety, naming, patterns, workflow, other) |
 
 ---
 
@@ -163,11 +164,11 @@ Check `<PROJECT_ROOT>/CONVENTIONS.md`.
 
 ```
 agent-context: found existing CONVENTIONS.md (<N> lines).
-Existing conventions will be merged into generated context files.
+Existing conventions will be transformed into AI-targeted directives in docs/agents/conventions.md.
 ```
 
-Existing conventions are copied verbatim into `docs/agents/conventions.md` and linked from AGENTS.md §6 (Deeper
-Context).
+Existing conventions are parsed and distilled into `docs/agents/conventions.md` (terse AI directives, not verbatim
+copy) and linked from AGENTS.md §6 (Deeper Context).
 They are NOT inlined into AGENTS.md — the 100-line cap forbids it.
 
 **Missing** — set `EXISTING_CONVENTIONS=null`. Print:
@@ -352,21 +353,56 @@ Rarity per candidate: `1.0 / violation_count_for_this_layer_pair`.
 4. Take top 5. If fewer than 3 candidates total, emit only what exists — do not pad.
 5. Set `NON_OBVIOUS` to the selected bullet strings.
 
+### Signal 4f — Convention directive extraction (only if `EXISTING_CONVENTIONS` not null)
+
+Parse `EXISTING_CONVENTIONS` into AI-targeted directives and set `CONVENTIONS_DIRECTIVES`.
+
+**Step 1 — Identify imperative lines.** For each line or bullet in `EXISTING_CONVENTIONS`, check if it contains any
+of the following keywords (case-insensitive): `must`, `must not`, `never`, `always`, `don't`, `do not`, `avoid`,
+`use`, `prefer`, `require`. Lines matching at least one keyword are rule candidates. Lines that are headings
+(`#`-prefixed), blank, or pure prose narrative (no imperative verb) are skipped.
+
+**Step 2 — Strip rationale.** For each candidate, truncate at the first occurrence of ` — `, ` because `, ` (this`,
+or `. ` that follows the core directive clause. Keep only the imperative clause.
+
+**Step 3 — Normalize prefix.**
+
+- If the line contains a negation (`must not`, `never`, `don't`, `do not`, `avoid`, `no `): normalize prefix to
+  `MUST NOT`.
+- If the line expresses obligation (`must`, `always`, `require`, `use`, `prefer`): normalize prefix to `MUST`.
+- Otherwise: keep the original imperative verb.
+
+**Step 4 — Categorize** each directive into exactly one bucket:
+
+- `safety` — keywords: secret, credential, env, migration, destructive, delete, drop, test disab, commit
+- `naming` — keywords: name, naming, case, suffix, prefix, file name, variable, module name, casing
+- `patterns` — keywords: import, abstract, class, struct, coupling, layer, circular, depend
+- `workflow` — keywords: phase, PR, pull request, review, gate, branch, deploy, merge, approval
+- `other` — anything not matching the above
+
+**Step 5 — Deduplicate.** For each directive, check if it semantically overlaps with any string in `NON_OBVIOUS`
+(same file path mentioned, or >70% word overlap). If so, skip it — `NON_OBVIOUS` already surfaces it.
+
+**Step 6 — Set result.** If at least one directive was extracted: set `CONVENTIONS_DIRECTIVES` to a map of
+`{safety: [...], naming: [...], patterns: [...], workflow: [...], other: [...]}` (omit empty categories).
+If zero directives were extracted: set `CONVENTIONS_DIRECTIVES = null`.
+
 ---
 
 ## Phase 5 — File generation
 
 ### Write-or-skip decision table
 
-| Condition                           | Action                                                                                                                                                                |
-|-------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| File does not exist                 | Create                                                                                                                                                                |
-| File exists + `FORCE=false`         | Skip. Add to "skipped" list for Phase 7.                                                                                                                              |
-| File exists + `FORCE=true`          | Overwrite                                                                                                                                                             |
-| `.claude/settings.json` (any state) | Always merge (union deny arrays, preserve existing hooks). Never overwrite.                                                                                           |
-| `.gitignore` (any state)            | Always append `CLAUDE.local.md` if line not already present.                                                                                                          |
-| `.aider.conf.yml` exists            | Merge: append to `read` list if not present.                                                                                                                          |
-| `DRY_RUN=true`                      | For all files including merge targets: compute final content (reading existing files for merges), print between `===== FILE: <path> =====` separators, write nothing. |
+| Condition                                                        | Action                                                                                                                                                                                                                                                                                    |
+|------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| File does not exist                                              | Create                                                                                                                                                                                                                                                                                    |
+| File exists + `FORCE=false`                                      | Skip. Add to "skipped" list for Phase 7.                                                                                                                                                                                                                                                  |
+| File exists + `FORCE=true`                                       | Overwrite                                                                                                                                                                                                                                                                                 |
+| `AGENTS.md` exists + contains `## Absolute rules` + `FORCE=true` | Overwrite all sections **except** `## Absolute rules` — read the existing file, extract the section from its heading to the next `##` heading, and splice it into the freshly-generated content in place of the template's §5. This protects user customisations across forced refreshes. |
+| `.claude/settings.json` (any state)                              | Always merge (union deny arrays, preserve existing hooks). Never overwrite.                                                                                                                                                                                                               |
+| `.gitignore` (any state)                                         | Always append `CLAUDE.local.md` if line not already present.                                                                                                                                                                                                                              |
+| `.aider.conf.yml` exists                                         | Merge: append to `read` list if not present.                                                                                                                                                                                                                                              |
+| `DRY_RUN=true`                                                   | For all files including merge targets: compute final content (reading existing files for merges), print between `===== FILE: <path> =====` separators, write nothing.                                                                                                                     |
 
 ### Write order (process sequentially, 1–18)
 
@@ -438,15 +474,27 @@ Read TEMPLATES.md §1 for the structural template. Apply these derivation rules:
 - Bullets: `NON_OBVIOUS` list from Phase 4.
 - Test: `The test: grep for the convention in two more places before assuming it holds.`
 
-**§5 Safety** (static content):
+**§5 Absolute rules** (partially static, partially derived):
 
-- Tagline: `**Hooks, not prose. Read \`.claude/settings.json\`.**`
-- Bullets (fixed):
-    - `- Destructive commands and secret writes are blocked at the hook layer.`
-    - `- Migration paths require explicit human confirmation — do not edit \`db/migrations/\`.`
-    - `- Never commit \`.env*\` files; they are denied at the hook layer.`
-    - `- When a command is blocked, stop and ask — do not work around the hook.`
-- Test: `The test: run \`rm -rf\` — the session must refuse.`
+H3 subsections are permitted within this section only (exception to Rule 3).
+MUST/MUST NOT prefixes are permitted within this section only (exception to Rule 9).
+
+- Tagline: `**Read and follow. No exceptions, no workarounds.**`
+- Static subsection `### Safety` with fixed bullets:
+    - `- MUST NOT commit secrets, \`.env\` files, or credentials.`
+    - `- MUST NOT edit migrations after they have been applied.`
+    - `- MUST NOT disable tests to make them pass.`
+    - `- MUST NOT run destructive commands without explicit human approval.`
+    - `- When a hook blocks a command, stop and ask — never work around it.`
+- Static subsection `### While coding` with fixed bullets:
+    - `- MUST NOT add abstractions beyond what is planned.`
+    - `- MUST NOT improve or refactor adjacent unrelated code.`
+    - `- MUST state assumptions explicitly; if uncertain, ask before proceeding.`
+- Optional subsection `### Project-specific` (emit only if `CONVENTIONS_DIRECTIVES` not null):
+    - From `CONVENTIONS_DIRECTIVES.safety`: each directive not already present in the Safety bullets above.
+    - From `CONVENTIONS_DIRECTIVES.patterns`: each directive not already present in the While coding bullets above.
+    - If no additional directives after deduplication: omit the `### Project-specific` subsection entirely.
+- No `The test:` line in this section.
 
 **§6 Deeper Context**:
 
@@ -455,7 +503,7 @@ Read TEMPLATES.md §1 for the structural template. Apply these derivation rules:
     - Always: `- docs/agents/architecture.md — layer map, data flow, entry points.`
     - Always: `- docs/agents/patterns.md — recurring patterns with file:line exemplars.`
     - Only if `DOMAIN_QUALITY` is "high" or "mixed": `- docs/agents/glossary.md — canonical vocabulary.`
-    - Only if `EXISTING_CONVENTIONS` not null: `- docs/agents/conventions.md — team coding standards.`
+    - Only if `EXISTING_CONVENTIONS` not null: `- docs/agents/conventions.md — AI-targeted coding directives.`
     - Always: `- docs/agents/testing.md — runner, layout, mock stance.`
     - Always: `- docs/agents/tech-debt.md — known gotchas.`
 - Test: `The test: if the answer is in AGENTS.md, don't open \`docs/agents/\`.`
@@ -464,6 +512,7 @@ Read TEMPLATES.md §1 for the structural template. Apply these derivation rules:
 
 - `---`
 -
+
 `Working if: agents stop asking "where does X live?", hook denials are respected, and PRs match the conventions above without being told.`
 
 ### AGENTS.md — 20-rule style rubric
@@ -472,14 +521,16 @@ Apply these rules during generation. If line count exceeds 100, cut lowest-value
 
 1. Hard cap 100 lines (including blanks).
 2. Open with one-sentence purpose + stack line. Total: 2 lines plus blank.
-3. Numbered H2s only (`## 1. Title`). No H3s. Maximum 7 sections.
+3. Numbered H2s only (`## 1. Title`). No H3s except within §5 Absolute rules, which uses H3 for Safety/While
+   coding/Project-specific subsections. Maximum 7 sections.
 4. Section titles: 2–4 words, Title Case, noun-phrase. No verbs, no questions.
 5. Every H2 followed immediately by bold tagline of 5–12 words, imperative, at least one negation.
 6. At least 50% of bullets begin with "No ", "Don't ", "Never ", or "If … stop".
 7. Bullets: 6–14 words, one sentence, period-terminated. No sub-bullets.
 8. Scare quotes `"..."` for jargon. Backticks only for identifiers, paths, commands.
-9. No MUST/NEVER/ALWAYS in ALLCAPS.
-10. Every section ends with exactly one `The test: <sentence>.` line.
+9. No MUST/NEVER/ALWAYS in ALLCAPS outside §5 Absolute rules — those directives use MUST/MUST NOT intentionally for
+   machine-parseable precision.
+10. Every section ends with exactly one `The test: <sentence>.` line. Exception: §5 Absolute rules has no test line.
 11. Group related bullets with lowercase colon-led lead-in, not H3.
 12. At most one fenced code block in the whole file (the Commands section).
 13. Drop subject pronouns. No "you", "we", "I". Bare imperatives.

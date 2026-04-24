@@ -52,16 +52,22 @@ The test: a fresh clone should run green after pasting the install and dev comma
 
 The test: grep for the convention in two more places before assuming it holds.
 
-## 5. Safety
+## 5. Absolute rules
 
-**Hooks, not prose. Read `.claude/settings.json`.**
+**Read and follow. No exceptions, no workarounds.**
 
-- Destructive commands and secret writes are blocked at the hook layer.
-- Migration paths require explicit human confirmation — do not edit `db/migrations/`.
-- Never commit `.env*` files; they are denied at the hook layer.
-- When a command is blocked, stop and ask — do not work around the hook.
+### Safety
+- MUST NOT commit secrets, `.env` files, or credentials.
+- MUST NOT edit migrations after they have been applied.
+- MUST NOT disable tests to make them pass.
+- MUST NOT run destructive commands without explicit human approval.
+- When a hook blocks a command, stop and ask — never work around it.
 
-The test: run `rm -rf` — the session must refuse.
+### While coding
+- MUST NOT add abstractions beyond what is planned.
+- MUST NOT improve or refactor adjacent unrelated code.
+- MUST state assumptions explicitly; if uncertain, ask before proceeding.
+{{absolute_rules_extras}}
 
 ## 6. Deeper Context
 
@@ -98,11 +104,16 @@ Working if: agents stop asking "where does X live?", hook denials are respected,
   `- Other layers: {comma-separated remaining names}.`
 - `{{commands_block}}` = one line per command key in order: install, dev, test, lint, build. Omit keys not present.
 - `{{non_obvious_bullets}}` = Phase 4 output (`NON_OBVIOUS`), one bullet per line.
+- `{{absolute_rules_extras}}` = optional `### Project-specific` block:
+    - Only emit if `CONVENTIONS_DIRECTIVES` is not null and its `safety` or `patterns` bucket contains directives not
+      already verbatim-present in the static Safety or While coding bullets.
+    - Format: `### Project-specific\n` followed by one `- <directive>` line per qualifying entry.
+    - If no qualifying entries after deduplication: emit nothing (no heading, no blank line).
 - `{{docs_agent_bullets}}` = one bullet per `docs/agents/` file emitted:
     - Always: `- docs/agents/architecture.md — layer map, data flow, entry points.`
     - Always: `- docs/agents/patterns.md — recurring patterns with file:line exemplars.`
     - Only if `DOMAIN_QUALITY` is "high" or "mixed": `- docs/agents/glossary.md — canonical vocabulary.`
-    - Only if `EXISTING_CONVENTIONS` is not null: `- docs/agents/conventions.md — team coding standards.`
+    - Only if `EXISTING_CONVENTIONS` is not null: `- docs/agents/conventions.md — AI-targeted coding directives.`
     - Always: `- docs/agents/testing.md — runner, layout, mock stance.`
     - Always: `- docs/agents/tech-debt.md — known gotchas.`
 
@@ -387,15 +398,62 @@ Until then, glossary terms live in code and in `AGENTS.md` §4 (Non-Obvious Conv
 ## 9. docs/agents/conventions.md (conditional — only when EXISTING_CONVENTIONS is not null)
 
 ```markdown
-# Team Conventions
+# Conventions
 
-> Source: `CONVENTIONS.md` in the project root.
-> This is the on-demand depth file. The original is the source of truth — edit there.
+Distilled directives for AI agents. Source: `CONVENTIONS.md` (edit there — this file is generated).
 
-{{EXISTING_CONVENTIONS_CONTENT}}
+{{conventions_safety_block}}
+{{conventions_naming_block}}
+{{conventions_patterns_block}}
+{{conventions_workflow_block}}
+{{conventions_other_block}}
+{{conventions_fallback}}
 ```
 
-`{{EXISTING_CONVENTIONS_CONTENT}}` = content of existing `CONVENTIONS.md`, verbatim. No rewriting, no summarization.
+### Substitution rules
+
+- `{{conventions_safety_block}}` = if `CONVENTIONS_DIRECTIVES.safety` is non-empty:
+  ```
+  ## Safety
+  - <directive>
+  - <directive>
+  ```
+  Otherwise: omit entirely (no heading, no blank line).
+
+- `{{conventions_naming_block}}` = if `CONVENTIONS_DIRECTIVES.naming` is non-empty:
+  ```
+  ## Naming
+  - <directive>
+  ```
+  Otherwise: omit entirely.
+
+- `{{conventions_patterns_block}}` = if `CONVENTIONS_DIRECTIVES.patterns` is non-empty:
+  ```
+  ## Patterns
+  - <directive>
+  ```
+  Otherwise: omit entirely.
+
+- `{{conventions_workflow_block}}` = if `CONVENTIONS_DIRECTIVES.workflow` is non-empty:
+  ```
+  ## Workflow
+  - <directive>
+  ```
+  Otherwise: omit entirely.
+
+- `{{conventions_other_block}}` = if `CONVENTIONS_DIRECTIVES.other` is non-empty:
+  ```
+  ## Other
+  - <directive>
+  ```
+  Otherwise: omit entirely.
+
+- `{{conventions_fallback}}` = emit only when `CONVENTIONS_DIRECTIVES` is null (zero directives extracted):
+  `No directives extracted — CONVENTIONS.md may be empty or prose-only.`
+  Otherwise: omit entirely.
+
+Do not copy `CONVENTIONS.md` content verbatim. Do not summarize in prose. Every line in this file must be a
+terse imperative directive extracted and normalized by Phase 4 Signal 4f.
 
 ---
 
