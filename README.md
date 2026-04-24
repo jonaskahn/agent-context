@@ -40,7 +40,7 @@ The problem is not the format. It is the evidence.
  │                     │     │                              │     │                            │
  │  src/               │     │  /understand                 │     │  /agent-context            │
  │  package.json  ──────────►│  knowledge-graph.json   ──────────►│  AGENTS.md                 │
- │  go.mod             │     │                              │     │  docs/agents/               │
+ │  go.mod             │     │                              │     │  docs/agents/              │
  │  ...                │     │  /understand-domain          │     │  .claude/settings.json     │
  │                     │     │  domain-graph.json      ──────────►│  CLAUDE.md                 │
  └─────────────────────┘     └──────────────────────────────┘     └────────────────────────────┘

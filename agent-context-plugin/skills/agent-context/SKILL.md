@@ -2,7 +2,7 @@
 name: agent-context
 description: Generate evidence-driven context files (AGENTS.md, CLAUDE.md, docs/agents/, .claude/settings.json) from Understand-Anything knowledge graphs. Use when the user runs /agent-context, asks to "bootstrap agent context", "generate AGENTS.md", "initialize Claude Code context", or "make this repo AI-agent-ready". Requires understand-anything/knowledge-graph.json — produced by running /understand on the target repo first.
 argument-hint: [ "[path] [--force] [--dry-run] [--with-ci]" ]
-version: 0.0.1
+version: 0.0.2
 ---
 
 # /agent-context
