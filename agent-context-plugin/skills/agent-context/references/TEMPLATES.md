@@ -626,7 +626,7 @@ jobs:
 
       - name: Check knowledge graph freshness
         run: |
-          GRAPH_FILE="understand-anything/knowledge-graph.json"
+          GRAPH_FILE="./understand-anything/knowledge-graph.json"
           if [ ! -f "$GRAPH_FILE" ]; then
             echo "::warning::Knowledge graph not found — run /understand to generate it"
             exit 0
@@ -660,7 +660,7 @@ jobs:
 # agent-context freshness check — usable as pre-commit hook or standalone
 set -euo pipefail
 
-GRAPH_FILE="${1:-understand-anything/knowledge-graph.json}"
+GRAPH_FILE="${1:-./understand-anything/knowledge-graph.json}"
 
 if [ ! -f "$GRAPH_FILE" ]; then
   echo "agent-context: knowledge graph not found at $GRAPH_FILE" >&2

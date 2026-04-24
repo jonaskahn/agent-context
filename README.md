@@ -112,7 +112,7 @@ Then, inside the repo you want to generate context for:
 /understand
 ```
 
-This produces `understand-anything/knowledge-graph.json`. For a populated glossary and business flow map, also run:
+This produces `./understand-anything/knowledge-graph.json`. For a populated glossary and business flow map, also run:
 
 ```shell
 /understand-domain

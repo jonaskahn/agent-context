@@ -1,8 +1,8 @@
 ---
 name: agent-context
-description: Generate evidence-driven context files (AGENTS.md, CLAUDE.md, docs/agents/, .claude/settings.json) from Understand-Anything knowledge graphs. Use when the user runs /agent-context, asks to "bootstrap agent context", "generate AGENTS.md", "initialize Claude Code context", or "make this repo AI-agent-ready". Requires understand-anything/knowledge-graph.json — produced by running /understand on the target repo first.
+description: Generate evidence-driven context files (AGENTS.md, CLAUDE.md, docs/agents/, .claude/settings.json) from Understand-Anything knowledge graphs. Use when the user runs /agent-context, asks to "bootstrap agent context", "generate AGENTS.md", "initialize Claude Code context", or "make this repo AI-agent-ready". Requires ./understand-anything/knowledge-graph.json — produced by running /understand on the target repo first.
 argument-hint: [ "[path] [--force] [--dry-run] [--with-ci]" ]
-version: 0.0.4
+version: 0.0.5
 ---
 
 # /agent-context
@@ -70,14 +70,14 @@ Run gates A → B → C → D in order. Gate A is hard (stop on failure). Gates 
 
 ### Gate A — Knowledge graph (HARD)
 
-Check `<PROJECT_ROOT>/understand-anything/knowledge-graph.json`.
+Check `<PROJECT_ROOT>/./understand-anything/knowledge-graph.json`.
 
 **Missing** — print verbatim and stop:
 
 ```
 agent-context: knowledge graph not found.
 
-This plugin needs understand-anything/knowledge-graph.json in the target
+This plugin needs ./understand-anything/knowledge-graph.json in the target
 repo to generate useful context files. If you have not set up
 Understand-Anything yet, run:
 
@@ -88,7 +88,7 @@ Then, in the repo you want to generate context for, run:
 
   /understand
 
-That will produce understand-anything/knowledge-graph.json. Re-run
+That will produce ./understand-anything/knowledge-graph.json. Re-run
 /agent-context once it is present.
 ```
 
@@ -97,7 +97,7 @@ That will produce understand-anything/knowledge-graph.json. Re-run
 ```
 agent-context: knowledge graph is not valid JSON.
 
-understand-anything/knowledge-graph.json exists but cannot be parsed.
+./understand-anything/knowledge-graph.json exists but cannot be parsed.
 This usually means /understand was interrupted. Re-run:
 
   /understand
@@ -137,7 +137,7 @@ Also check `project.analyzedAt`: if older than 14 days from now, print a stalene
 
 ### Gate C — Domain graph (SOFT)
 
-Check `<PROJECT_ROOT>/understand-anything/domain-graph.json`.
+Check `<PROJECT_ROOT>/./understand-anything/domain-graph.json`.
 
 **Missing** — set `DOMAIN_QUALITY="missing"`, `DOMAIN_GRAPH=null`. Print:
 
