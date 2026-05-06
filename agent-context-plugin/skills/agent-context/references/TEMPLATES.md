@@ -15,26 +15,11 @@ Template numbering matches the Phase 5 write order. Process sequentially.
 {{one_line_description}}
 {{stack_line}}
 {{stale_banner_if_any}}
+<!-- agent-context v{{plugin_version}} | graph {{graph_hash_short}} | {{graph_analyzed_date}} | regenerate: /agent-context --force -->
 
-## 1. Architectural Altitude
+## 1. Commands
 
-**{{layer_tagline}}**
-
-{{tour_bullets}}
-
-The test: open AGENTS.md cold, name the top three layers without scrolling.
-
-## 2. Module Map
-
-**Layers are disjoint. Don't blur them.**
-
-{{layer_bullets}}
-
-The test: every file under {{primary_source_dir}}/ maps to exactly one layer above.
-
-## 3. Commands
-
-**One way to run things. Use it.**
+**One way to run things. Don't invent alternatives.**
 
 ```
 
@@ -42,9 +27,41 @@ The test: every file under {{primary_source_dir}}/ maps to exactly one layer abo
 
 ```
 
+{{monorepo_workspaces_comment}}
+
 The test: a fresh clone should run green after pasting the install and dev commands.
 
-## 4. Non-Obvious Conventions
+## 2. Boundaries
+
+**Three tiers. No exceptions, no shortcuts.**
+
+Always: run lint before committing.
+Always: use the documented test command above.
+Always: ask before changing files outside the task scope.
+Ask first: {{ask_first_bullets}}
+Never: commit secrets, `.env` files, or credentials.
+Never: edit or delete applied migrations.
+Never: run destructive commands without explicit approval.
+Never: push `--force` to `main`.
+{{never_extras}}
+
+## 3. Module Map
+
+**Layers are disjoint. Don't blur them.**
+
+{{layer_bullets}}
+
+The test: every file under {{primary_source_dir}}/ maps to exactly one layer above.
+
+## 4. Architectural Altitude
+
+**{{layer_tagline}}**
+
+{{tour_bullets}}
+
+The test: open AGENTS.md cold, name the top two entry points without scrolling.
+
+## 5. Non-Obvious Conventions
 
 **Match existing shape. Don't normalise the outliers.**
 
@@ -52,7 +69,7 @@ The test: a fresh clone should run green after pasting the install and dev comma
 
 The test: grep for the convention in two more places before assuming it holds.
 
-## 5. Absolute rules
+## 6. Absolute rules
 
 **Read and follow. No exceptions, no workarounds.**
 
@@ -69,7 +86,7 @@ The test: grep for the convention in two more places before assuming it holds.
 - MUST state assumptions explicitly; if uncertain, ask before proceeding.
 {{absolute_rules_extras}}
 
-## 6. Deeper Context
+## 7. Deeper Context
 
 **AGENTS.md is the kernel. Below it, read on demand.**
 
@@ -88,39 +105,53 @@ Working if: agents stop asking "where does X live?", hook denials are respected,
 - `{{one_line_description}}` = first sentence of `project.description`.
 - `{{stack_line}}` =
   `A {languages[0]}/{languages[1]} codebase built with {frameworks[0]}, {frameworks[1]}, and {frameworks[2]}.` Use first
-  2 languages and first 3 frameworks. Omit items that do not exist.
+  2 languages and first 3 frameworks. Omit items that do not exist. If `MONOREPO_TOOL` is not null, append:
+  ` Monorepo managed with {MONOREPO_TOOL}.`
 - `{{stale_banner_if_any}}` = if `GRAPH_STALE=true`:
   `> ⚠ Graph generated at commit {graph_hash[:7]}; repo is at {head_hash[:7]}. Re-run /understand for current context.`
   Otherwise empty (no blank line).
+- `{{plugin_version}}` = current plugin version string (e.g. `0.0.7`).
+- `{{graph_hash_short}}` = `project.gitCommitHash[:7]` from knowledge graph, or `"unknown"` if absent.
+- `{{graph_analyzed_date}}` = `project.analyzedAt[:10]` (YYYY-MM-DD portion of ISO-8601 timestamp).
+- `{{commands_block}}` = one line per command key in order: install, dev, test, lint, build. Omit keys not present.
+- `{{monorepo_workspaces_comment}}` = if `MONOREPO_TOOL` is not null and `MONOREPO_WORKSPACES` non-empty:
+  `# workspaces: {first 3 paths joined by ", "}{", …" if more than 3}`. Otherwise omit entirely (no blank line).
+- `{{ask_first_bullets}}` = if `CONVENTIONS_DIRECTIVES.workflow` is non-null and non-empty: first 2 workflow
+  directives rephrased as short conditions. Otherwise: `schema migrations or changes to shared config.`
+- `{{never_extras}}` = if `CONVENTIONS_DIRECTIVES.safety` contains directives not already in the static Never
+  bullets above: up to 2 more `Never: <directive>` lines. Otherwise omit.
 - `{{layer_tagline}}` = `**{top_layer} is the main stage. {second_layer} is the backstage.**` where top/second are
   layers sorted by node count desc. If only 1 layer: `**{layer} is the architecture. Read the module map below.**`
+  If 0 layers: `**No layers detected. Run /understand with more source files.**`
 - `{{tour_bullets}}` = one bullet per tour step (max 5):
   `- To understand {step.description (lowercase first char)}, start at \`{filePath of first nodeId}\`.` If tour is
   empty: omit bullets entirely.
-- `{{primary_source_dir}}` = most common top-level directory prefix among file nodes (e.g. `app`, `src`). Default:
-  `src`.
+- `{{primary_source_dir}}` = most common top-level directory prefix among file nodes (e.g. `app`, `src`). Default: `src`.
 - `{{layer_bullets}}` = one bullet per layer sorted by node count desc, max 6:
   `- {layer.name} ({nodeCount}) — {layer.description}` If >6 layers, add:
   `- Other layers: {comma-separated remaining names}.`
-- `{{commands_block}}` = one line per command key in order: install, dev, test, lint, build. Omit keys not present.
-- `{{non_obvious_bullets}}` = Phase 4 output (`NON_OBVIOUS`), one bullet per line.
+- `{{non_obvious_bullets}}` = Phase 4 `NON_OBVIOUS` + `CONTENT_SIGNALS`, one bullet per line, combined max 7.
+  Omit entire §5 block if both lists are empty.
 - `{{absolute_rules_extras}}` = optional `### Project-specific` block:
     - Only emit if `CONVENTIONS_DIRECTIVES` is not null and its `safety` or `patterns` bucket contains directives not
       already verbatim-present in the static Safety or While coding bullets.
     - Format: `### Project-specific\n` followed by one `- <directive>` line per qualifying entry.
     - If no qualifying entries after deduplication: emit nothing (no heading, no blank line).
-- `{{docs_agent_bullets}}` = one bullet per `docs/agents/` file emitted:
-    - Always: `- docs/agents/architecture.md — project overview, stack, quick start, layer map.`
-    - Flow bullet (conditional on Phase 2 indexes):
-        - If `DOMAIN_GRAPH` is null OR `total_flow_count == 0`: omit the flow bullet entirely.
-        - Else if `total_flow_count > 8`:
-          `- docs/agents/flows/ — domain flows split per domain (start at flows/index.md).`
-        - Else: `- docs/agents/flow.md — domain flows with entry points and triggers.`
-    - Always: `- docs/agents/patterns.md — recurring patterns with file:line exemplars.`
-    - Only if `DOMAIN_QUALITY` is "high" or "mixed": `- docs/agents/glossary.md — canonical vocabulary.`
-    - Only if `EXISTING_CONVENTIONS` is not null: `- docs/agents/conventions.md — AI-targeted coding directives.`
-    - Always: `- docs/agents/testing.md — runner, layout, mock stance.`
-    - Always: `- docs/agents/tech-debt.md — known gotchas.`
+- `{{docs_agent_bullets}}` = one bullet per `docs/agents/` file emitted (use `@` prefix for Claude import syntax):
+    - If `MINIMAL=true`: single bullet `- Full context in docs/agents/ — run /agent-context without --minimal to generate.`
+    - Otherwise:
+        - Always: `- @docs/agents/architecture.md — project overview, stack, quick start, layer map.`
+        - Flow bullet (conditional on Phase 2 indexes):
+            - If `DOMAIN_GRAPH` is null OR `total_flow_count == 0`: omit the flow bullet.
+            - Else if `total_flow_count > 8`:
+              `- @docs/agents/flows/ — domain flows split per domain (start at flows/index.md).`
+            - Else: `- @docs/agents/flow.md — domain flows with entry points and triggers.`
+        - Always: `- @docs/agents/patterns.md — recurring patterns with file:line exemplars.`
+        - Only if `DOMAIN_QUALITY` is "high" or "mixed": `- @docs/agents/glossary.md — canonical vocabulary.`
+        - Only if `EXISTING_CONVENTIONS` is not null: `- @docs/agents/conventions.md — AI-targeted coding directives.`
+        - Always: `- @docs/agents/testing.md — runner, layout, mock stance.`
+        - Always: `- @docs/agents/tech-debt.md — known gotchas.`
+        - Only if `CHANGELOG_SNIPPET` is not null: `- @docs/agents/changelog.md — recent changes (last 3–5 releases).`
 
 ---
 
@@ -556,6 +587,8 @@ globs:
 alwaysApply: true
 ---
 
+<!-- Generated from AGENTS.md — do not edit directly. Re-run /agent-context --force to update. -->
+
 {{AGENTS_MD_CONTENT_WITHOUT_H1}}
 ```
 
@@ -567,10 +600,12 @@ All other content preserved verbatim.
 ## 13. .github/copilot-instructions.md
 
 ```markdown
+<!-- Generated from AGENTS.md — do not edit directly. Re-run /agent-context --force to update. -->
+
 {{AGENTS_MD_CONTENT}}
 ```
 
-Verbatim copy of AGENTS.md. No transformation.
+AGENTS.md verbatim, preceded by a provenance HTML comment.
 
 ---
 
@@ -605,12 +640,14 @@ Verbatim copy of AGENTS.md. No transformation.
 ```yaml
 read:
   - CONVENTIONS.md
+  - AGENTS.md
+  - docs/agents/architecture.md
 ```
 
 ### Merge rules (when file already exists)
 
-Parse existing YAML. Append `CONVENTIONS.md` to the `read` list if not already present. Never remove existing entries.
-Write back.
+Parse existing YAML. Ensure all three of `CONVENTIONS.md`, `AGENTS.md`, and `docs/agents/architecture.md` are present
+in the `read` list. Append any that are missing. Never remove existing entries. Write back.
 
 ---
 
@@ -835,3 +872,144 @@ need; add more as conventions emerge.
 ```
 
 Verbatim. No substitutions. Emitted only when `EXISTING_CONVENTIONS` is null AND `CONVENTIONS_ACTION == "stub"`.
+
+---
+
+## 23. .claude/rules/{{layer_slug}}.md (one per layer — always emitted, even with --minimal)
+
+One file per entry in `LAYER_GLOBS`. Filename: `{layer.name}` lowercased, spaces replaced with `-`, e.g.
+`app-components.md`.
+
+```markdown
+---
+paths:
+  - "{{layer_glob}}"
+---
+
+<!-- agent-context | layer: {{layer_name}} | regenerate: /agent-context --force -->
+
+{{layer_description}}
+
+{{layer_non_obvious_bullets}}
+```
+
+### Substitution rules
+
+- `{{layer_glob}}` = `LAYER_GLOBS[layer.name]` (e.g. `app/components/**/*`).
+- `{{layer_name}}` = `layer.name` verbatim.
+- `{{layer_description}}` = `layer.description` from graph.
+- `{{layer_non_obvious_bullets}}` = bullets from `NON_OBVIOUS` that reference a file path belonging to this layer
+  (use `layersByNodeId` to check). If none, omit this block entirely (just emit description).
+
+---
+
+## 24. GEMINI.md
+
+```
+@AGENTS.md
+```
+
+Exact content — one-line `@AGENTS.md` shim, identical pattern to CLAUDE.md. No blank line at EOF required.
+
+---
+
+## 25. .windsurf/rules/agents.md
+
+```markdown
+<!-- Generated from AGENTS.md — do not edit directly. Re-run /agent-context --force to update. -->
+
+{{AGENTS_MD_CONTENT_WITHOUT_H1}}
+```
+
+`{{AGENTS_MD_CONTENT_WITHOUT_H1}}` = rendered AGENTS.md with the H1 header line removed. All other content verbatim.
+
+---
+
+## 26. .cursor/rules/{{layer_slug}}.mdc (one per layer — skip if --minimal)
+
+One file per entry in `LAYER_GLOBS`. Filename: `{layer.name}` lowercased, spaces replaced with `-`, suffixed `.mdc`,
+e.g. `app-components.mdc`.
+
+```markdown
+---
+description: Conventions for the {{layer_name}} layer ({{layer_node_count}} files)
+globs: "{{layer_glob}}"
+alwaysApply: false
+---
+
+<!-- agent-context | layer: {{layer_name}} | regenerate: /agent-context --force -->
+
+{{layer_description}}
+
+{{layer_non_obvious_bullets}}
+```
+
+### Substitution rules
+
+- Same as §23, plus `{{layer_node_count}}` = number of file nodes in this layer.
+- `alwaysApply: false` — these are agent-requested rules, not always-on. Cursor will attach when the glob matches
+  an open file.
+
+---
+
+## 27. .github/instructions/{{layer_slug}}.instructions.md (one per layer — skip if --minimal)
+
+One file per entry in `LAYER_GLOBS`. Filename: `{layer.name}` lowercased, spaces replaced with `-`, suffixed
+`.instructions.md`, e.g. `app-components.instructions.md`.
+
+```markdown
+---
+applyTo: "{{layer_glob}}"
+---
+
+<!-- agent-context | layer: {{layer_name}} | regenerate: /agent-context --force -->
+
+{{layer_description}}
+
+{{layer_non_obvious_bullets}}
+```
+
+### Substitution rules
+
+Same as §23. `applyTo` frontmatter uses Copilot's path-scoping syntax.
+
+---
+
+## 28. .agent-context/manifest.json (always written)
+
+```json
+{
+  "pluginVersion": "{{plugin_version}}",
+  "generatedAt": "{{iso_timestamp}}",
+  "graphHash": "{{graph_hash_full}}",
+  "graphAnalyzedAt": "{{graph_analyzed_at}}",
+  "mode": "{{mode}}",
+  "files": [
+    { "path": "AGENTS.md", "lines": {{agents_lines}}, "status": "written" },
+    { "path": "CLAUDE.md", "lines": 1, "status": "written" }
+  ],
+  "lint": {
+    "checks": 10,
+    "passed": {{lint_passed}},
+    "failed": {{lint_failed}},
+    "failures": [ "{{check_description}}", "..." ]
+  },
+  "tokenEstimate": {{token_estimate}}
+}
+```
+
+### Substitution rules
+
+- `{{plugin_version}}` = current plugin version string.
+- `{{iso_timestamp}}` = current UTC timestamp in ISO-8601 format.
+- `{{graph_hash_full}}` = `project.gitCommitHash` from knowledge graph, or `null` if absent.
+- `{{graph_analyzed_at}}` = `project.analyzedAt` from knowledge graph.
+- `{{mode}}` = `"minimal"` if `MINIMAL=true`, `"full"` otherwise.
+- `files` array = one entry per file written in Phase 5. Include path, line count, and status (`"written"`,
+  `"skipped"`, `"merged"`). Omit files that were not processed.
+- `lint` object = Phase 6 results. `failures` array contains descriptions of failed checks; empty array if all pass.
+- `{{token_estimate}}` = rough token count for AGENTS.md only: `line_count × average_words_per_line × 1.3`
+  (integer). This is informational — not a billing figure.
+
+This file is **always overwritten** regardless of `FORCE` or `DRY_RUN`. Under `DRY_RUN=true`, print its would-be
+content between separators but still write it (manifest is meta-output, not repo content).

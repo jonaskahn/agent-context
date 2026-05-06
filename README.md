@@ -60,7 +60,7 @@ your-repo/
 ├── AGENTS.md                ◄── 🔑 the kernel  (<100 lines, loaded every session)
 ├── CLAUDE.md                ◄── 🔗 one-line shim: @AGENTS.md
 ├── CLAUDE.local.md          ◄── 🔒 gitignored personal prefs
-├── CONVENTIONS.md           ◄── 🔄 Aider companion (synced from AGENTS.md)
+├── CONVENTIONS.md           ◄── 🔄 starter stub | legacy AGENTS.md copy | skipped (user choice on first run)
 │
 ├── .claude/
 │   └── settings.json        ◄── 🛡️  deny-list hooks (rm -rf, force-push, .env writes...)
@@ -78,7 +78,10 @@ your-repo/
 │
 └── docs/agents/             ◄── 📚 on-demand depth (loaded only when referenced)
     ├── architecture.md           project overview · stack · quick start · layer map · guided tour
-    ├── flow.md                   entry points · business flows · execution paths
+    ├── flow.md                   domain flows · entry points · triggers (single file when ≤8 flows)
+    ├── flows/                    folder mode (>8 flows): index.md + one file per domain
+    │   ├── index.md              domains, flow counts, cross-domain edges
+    │   └── <domain>.md           per-domain flows with entry points and triggers
     ├── patterns.md               complexity hotspots · function exemplars · hub imports
     ├── glossary.md               domain vocabulary from the domain graph (or stub)
     ├── conventions.md            team coding standards (if CONVENTIONS.md exists)
@@ -162,9 +165,12 @@ available when a task actually needs it.
   every layer mapped with files sorted by inbound-import count. Entry points (zero incoming imports) called out
   separately. Cross-layer dependency counts show where the architecture has coupling.
 
-- **`flow.md`** — where execution enters the codebase. When a domain graph is present and has flow nodes, each business
-  flow is listed with its trigger type and entry-point file. Without domain data, falls back to the import-graph entry
-  points and prompts you to run `/understand-domain`.
+- **`flow.md` or `flows/`** — strictly derived from `domain-graph.json`. Each business flow is listed with its trigger
+  type and entry-point file. **Single-file mode** (`docs/agents/flow.md`) when the domain graph has ≤8 flows;
+  **folder mode** (`docs/agents/flows/index.md` + one file per domain) when it has more. The plugin auto-migrates
+  between modes on subsequent runs — old artefacts are deleted before the new mode is written. When the domain graph
+  is missing or empty, `flow.md` becomes a one-line stub pointing at `/understand-domain` (no import-graph fallback —
+  that lives in `architecture.md`).
 
 - **`patterns.md`** — files the analyser flagged as `complex` with their function counts. Representative functions per
   layer with `file:line` references. The ten most-imported "hub" files whose changes ripple everywhere.
@@ -282,15 +288,25 @@ Every AI coding tool reads a different file. agent-context writes all of them fr
 | Cursor         | `.cursor/rules/agents.mdc`           | AGENTS.md content with `.mdc` frontmatter |
 | GitHub Copilot | `.github/copilot-instructions.md`    | AGENTS.md verbatim                        |
 | OpenAI Codex   | `.codex/instructions.md`             | AGENTS.md verbatim                        |
-| Aider          | `CONVENTIONS.md` + `.aider.conf.yml` | AGENTS.md verbatim + config reference     |
+| Aider          | `CONVENTIONS.md` + `.aider.conf.yml` | Starter stub / legacy AGENTS.md copy / skip (user choice) |
 
 All vendor files follow the same skip/force/dry-run logic as core files. When you run `/agent-context --force`, every
 vendor file is regenerated from the current graph state.
 
-**Existing `CONVENTIONS.md`?** If your repo already has a `CONVENTIONS.md` with team-authored coding standards, the
-plugin won't overwrite it. Instead, it reads the content and merges it into `AGENTS.md` as a dedicated
-`§7 Team Conventions` section — which then propagates to every vendor file. Human-authored rules take priority over
-graph-derived defaults. If no `CONVENTIONS.md` exists, the plugin suggests creating one.
+**Existing `CONVENTIONS.md`?** If your repo already has a `CONVENTIONS.md` (or `conventions.md`) with team-authored
+coding standards, the plugin won't overwrite it. Instead, it reads the content and merges it into `AGENTS.md` as a
+dedicated `§7 Team Conventions` section — which then propagates to every vendor file. Human-authored rules take
+priority over graph-derived defaults.
+
+**No `CONVENTIONS.md` yet?** On the first run the plugin asks how to handle it via an interactive prompt:
+
+| Option                | Behavior                                                                                      |
+|-----------------------|-----------------------------------------------------------------------------------------------|
+| **Starter stub** *(default)* | Write a minimal `CONVENTIONS.md` with empty Safety / Naming / Patterns / Workflow sections so the team can fill them in. The next run picks up the populated file and distills it into `docs/agents/conventions.md`. |
+| **Skip**              | No `CONVENTIONS.md` is created. Other outputs are unaffected.                                 |
+| **Legacy**            | Write `CONVENTIONS.md` as a verbatim copy of `AGENTS.md` (the previous default — useful when you want Aider to consume the same kernel). |
+
+Under `--dry-run` or in headless invocations the prompt is skipped and the starter-stub option is used.
 
 ## 🔧 Compatibility
 
