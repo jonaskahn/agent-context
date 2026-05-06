@@ -111,7 +111,11 @@ Working if: agents stop asking "where does X live?", hook denials are respected,
     - If no qualifying entries after deduplication: emit nothing (no heading, no blank line).
 - `{{docs_agent_bullets}}` = one bullet per `docs/agents/` file emitted:
     - Always: `- docs/agents/architecture.md — project overview, stack, quick start, layer map.`
-    - Always: `- docs/agents/flow.md — entry points, business flows, execution paths.`
+    - Flow bullet (conditional on Phase 2 indexes):
+        - If `DOMAIN_GRAPH` is null OR `total_flow_count == 0`: omit the flow bullet entirely.
+        - Else if `total_flow_count > 8`:
+          `- docs/agents/flows/ — domain flows split per domain (start at flows/index.md).`
+        - Else: `- docs/agents/flow.md — domain flows with entry points and triggers.`
     - Always: `- docs/agents/patterns.md — recurring patterns with file:line exemplars.`
     - Only if `DOMAIN_QUALITY` is "high" or "mixed": `- docs/agents/glossary.md — canonical vocabulary.`
     - Only if `EXISTING_CONVENTIONS` is not null: `- docs/agents/conventions.md — AI-targeted coding directives.`
@@ -580,10 +584,11 @@ Verbatim copy of AGENTS.md. No transformation.
 
 ---
 
-## 15. CONVENTIONS.md (Aider)
+## 15. CONVENTIONS.md (legacy verbatim copy)
 
-**Condition**: only create if `EXISTING_CONVENTIONS` is null. If existing CONVENTIONS.md was found, skip — do not
-overwrite.
+**Condition**: only emit when `EXISTING_CONVENTIONS` is null AND `CONVENTIONS_ACTION == "legacy"`. If
+`CONVENTIONS_ACTION == "stub"` use §22 instead. If `CONVENTIONS_ACTION == "skip"` or `EXISTING_CONVENTIONS` is set, do
+not emit.
 
 ```markdown
 {{AGENTS_MD_CONTENT}}
@@ -685,59 +690,148 @@ Make the script executable (`chmod +x`) when writing it.
 
 ---
 
-## 19. docs/agents/flow.md
+## 19. docs/agents/flow.md (single-file mode — `total_flow_count <= 8`)
 
 ```markdown
 # Application Flows
 
-How execution enters {{project_name}}. Trace-oriented — shows where external requests land first.
+Domain-derived. Each flow shows the first file an external trigger touches.
 
-{{if DOMAIN_QUALITY == "high" or "mixed" and domains_with_flows is non-empty}}
-
-## Business flows
-
-Derived from the domain model. Each flow entry shows the first file touched by an external trigger.
+{{if DOMAIN_GRAPH is null OR total_flow_count == 0}}
+No flows extracted from `domain-graph.json`. Run `/understand-domain` then `/agent-context --force` to populate.
+{{else}}
 
 {{#each domain in domains_with_flows sorted by outgoing_edge_count desc}}
 
-### {{domain.name}}
+## {{domain.name}}
 
-{{domain.summary}}
+{{if domain.summary is non-generic}}{{domain.summary}}{{/if}}
 
 {{#each flow in domain.flows}}
-
-#### {{flow.name}}
-
-- Entry point: `{{flow.domainMeta.entryPoint}}`
-- Trigger: {{flow.domainMeta.entryType}}
-{{if flow.summary is non-generic}}- Summary: {{flow.summary}}{{/if}}
-
-{{/each}}
+- **{{flow.name}}** — entry `{{flow.domainMeta.entryPoint}}` ({{flow.domainMeta.entryType}}){{if flow.summary is non-generic}}; {{flow.summary}}{{/if}}
 {{/each}}
 
-{{else}}
-
-## Entry points
-
-Domain model unavailable or has no flows — entry points inferred from the import graph (files with no inbound imports).
-
-{{#each node in entry_points}}
-- `{{node.filePath}}`{{if node.summary is non-generic}} — {{node.summary}}{{/if}}
 {{/each}}
 
-*Run `/understand-domain` then `/agent-context --force` to generate flow data from the domain model.*
+{{if cross_domain_edges is non-empty}}
+## Cross-domain
+
+{{#each (a, b) in cross_domain_edges}}
+- {{a}} → {{b}}
+{{/each}}
+{{/if}}
 
 {{/if}}
 ```
 
 ### Derivation rules
 
-- **`domains_with_flows`**: domain-type nodes in `DOMAIN_GRAPH` that have >=1 outgoing `contains_flow` edge. Sort by
-  total outgoing-edge count descending (same ordering as glossary clusters). Skip domains with 0 flows.
+- **`domains_with_flows`**: domain-type nodes in `DOMAIN_GRAPH` with ≥1 outgoing `contains_flow` edge, sorted by total
+  outgoing-edge count descending.
 - **`domain.flows`**: flow-type nodes reachable via `contains_flow` edges from the domain node.
 - **Non-generic summary test**: same rule as architecture.md — generic if starts with `"Source file "` or ends with
   `"— function in this module."`.
-- **Fallback condition**: use the entry-points fallback section when `DOMAIN_QUALITY` is "low", "missing", or
-  `DOMAIN_GRAPH` is null, OR when `DOMAIN_QUALITY` is "high"/"mixed" but no domain has any flows.
-- **Entry points** (fallback): same set as architecture.md — file nodes with 0 incoming `imports` edges AND >=1 outgoing
-  edge.
+- **No fallback**: flow.md is strictly domain-derived. Import-graph entry points live in `docs/agents/architecture.md`.
+  When the domain graph is null or empty, render the stub branch above and stop.
+- **Style**: short imperative bullets. No marketing prose. Backticks for paths. Bold for flow names so they scan in a
+  list view.
+
+---
+
+## 20. docs/agents/flows/index.md (folder mode — `total_flow_count > 8`)
+
+```markdown
+# Application Flows
+
+{{domain_count}} domains, {{total_flow_count}} flows. Read the per-domain file for the flows you need; this index is the
+map.
+
+## Domains
+
+{{#each domain in domains_with_flows sorted by outgoing_edge_count desc}}
+- [{{domain.name}}](./{{domain.slug}}.md) — {{domain.flow_count}} flow(s){{if domain.summary is non-generic}}; {{domain.summary}}{{/if}}
+{{/each}}
+
+{{if cross_domain_edges is non-empty}}
+## Cross-domain edges
+
+{{#each (a, b) in cross_domain_edges}}
+- {{a}} → {{b}}
+{{/each}}
+{{/if}}
+```
+
+### Substitution rules
+
+- `{{domain_count}}` = `len(domains_with_flows)`.
+- `{{total_flow_count}}` = sum of `len(domain.flows)` across `domains_with_flows`.
+- `{{domain.flow_count}}` = `len(domain.flows)` for that domain.
+- `{{domain.slug}}` = derived per the slug rules in SKILL.md "Flow output mode".
+
+---
+
+## 21. docs/agents/flows/{{domain.slug}}.md (one per domain in folder mode)
+
+```markdown
+# {{domain.name}}
+
+{{if domain.summary is non-generic}}{{domain.summary}}{{/if}}
+
+## Flows
+
+{{#each flow in domain.flows}}
+
+### {{flow.name}}
+
+- Entry: `{{flow.domainMeta.entryPoint}}`
+- Trigger: {{flow.domainMeta.entryType}}
+{{if flow.summary is non-generic}}- Summary: {{flow.summary}}{{/if}}
+
+{{/each}}
+
+{{if cross_domain_neighbours is non-empty}}
+## See also
+
+{{#each n in cross_domain_neighbours}}
+- [{{n.name}}](./{{n.slug}}.md)
+{{/each}}
+{{/if}}
+```
+
+### Substitution rules
+
+- `cross_domain_neighbours` for a given domain = the set of `(name, slug)` pairs reachable in either direction via
+  `cross_domain` edges in `DOMAIN_GRAPH`. Deduplicate by slug. Sort alphabetically by name.
+- If a flow has no `domainMeta` (graph schema mismatch), skip the flow and emit a one-line warning to stdout.
+  Continue with the rest.
+- File written under `docs/agents/flows/<slug>.md`. The slug is computed once in Phase 5 and reused for both this
+  template and §20's index links so cross-references stay consistent.
+
+---
+
+## 22. CONVENTIONS.md (starter stub — `CONVENTIONS_ACTION == "stub"`)
+
+```markdown
+# Conventions
+
+<!--
+Human-authored coding standards live here. /agent-context reads this file on the
+next run and distills it into docs/agents/conventions.md. Keep directives terse
+and imperative ("MUST NOT commit X", "Always use Y"). Delete sections you do not
+need; add more as conventions emerge.
+-->
+
+## Safety
+<!-- Secrets, destructive ops, migrations, env handling. -->
+
+## Naming
+<!-- File / module / variable casing, suffixes, prefixes. -->
+
+## Patterns
+<!-- Layering, imports, abstractions, dependency direction. -->
+
+## Workflow
+<!-- PR rules, review gates, branch policy, deploy ordering. -->
+```
+
+Verbatim. No substitutions. Emitted only when `EXISTING_CONVENTIONS` is null AND `CONVENTIONS_ACTION == "stub"`.

@@ -49,6 +49,10 @@ All variables set during execution. Phases that set each variable are noted.
 | `PROJECT_SUMMARY`        | string         | Phase 3 | One-line project summary from knowledge-graph project.description or first tour step (120 chars max)      |
 | `NON_OBVIOUS`            | string[]       | Phase 4 | Up to 5 phrased bullet strings                                                                            |
 | `CONVENTIONS_DIRECTIVES` | map or null    | Phase 4 | Extracted directives from CONVENTIONS.md, grouped by category (safety, naming, patterns, workflow, other) |
+| `CONVENTIONS_ACTION`     | enum or null   | Phase 1 | "stub", "skip", or "legacy" when EXISTING_CONVENTIONS is null; null otherwise                             |
+| `total_flow_count`       | int            | Phase 2 | Count of `type=="flow"` nodes in DOMAIN_GRAPH; 0 if DOMAIN_GRAPH is null                                  |
+| `flowsByDomain`          | Map            | Phase 2 | domain.id → flow Node[] via `contains_flow` edges                                                         |
+| `cross_domain_edges`     | tuple[]        | Phase 2 | Ordered (source.name, target.name) pairs from `cross_domain` edges                                        |
 
 ---
 
@@ -161,9 +165,9 @@ else:                            DOMAIN_QUALITY = "high"
 
 ### Gate D — Existing CONVENTIONS.md (SOFT)
 
-Check `<PROJECT_ROOT>/CONVENTIONS.md`.
+Check `<PROJECT_ROOT>/CONVENTIONS.md` (also accept `conventions.md` — case-insensitive lookup).
 
-**Found** — read content. Set `EXISTING_CONVENTIONS` to content string. Print:
+**Found** — read content. Set `EXISTING_CONVENTIONS` to content string. Set `CONVENTIONS_ACTION=null`. Print:
 
 ```
 agent-context: found existing CONVENTIONS.md (<N> lines).
@@ -174,15 +178,19 @@ Existing conventions are parsed and distilled into `docs/agents/conventions.md` 
 copy) and linked from AGENTS.md §6 (Deeper Context).
 They are NOT inlined into AGENTS.md — the 100-line cap forbids it.
 
-**Missing** — set `EXISTING_CONVENTIONS=null`. Print:
+**Missing** — set `EXISTING_CONVENTIONS=null`. Determine `CONVENTIONS_ACTION`:
 
-```
-agent-context: no CONVENTIONS.md found.
-Consider creating one with your team's coding standards, naming
-conventions, and architectural decisions. These human-authored rules
-complement the graph-derived context and will be merged into all
-generated files on the next run.
-```
+- If `DRY_RUN=true` OR AskUserQuestion is unavailable (headless / script invocation): set `CONVENTIONS_ACTION="stub"`.
+  Print: `agent-context: no CONVENTIONS.md — defaulting to starter stub.`
+- Otherwise call AskUserQuestion with question
+  `"No CONVENTIONS.md found. How should /agent-context handle CONVENTIONS.md?"` and three options:
+    - (a) *(default, recommended)* `Create a starter stub with empty Safety / Naming / Patterns / Workflow sections.`
+      → `CONVENTIONS_ACTION="stub"`
+    - (b) `Skip — do not create CONVENTIONS.md.` → `CONVENTIONS_ACTION="skip"`
+    - (c) `Legacy — write a verbatim copy of AGENTS.md.` → `CONVENTIONS_ACTION="legacy"`
+
+Do NOT mutate `EXISTING_CONVENTIONS`. It stays `null` for this run. The stub written by option (a) is not parsed back as
+conventions on the same run; on the next run, Gate D detects it via the Found branch.
 
 ---
 
@@ -213,6 +221,12 @@ One pass each:
 3. `layers[]` → `nodesByLayer` (Map: layer.name → node.id[]), and for each nodeId:
    `layersByNodeId[nodeId] = layer.name`.
 4. Filter `nodesById` values where `type == "function"` → group by `filePath` into `functionsByFile`.
+5. If `DOMAIN_GRAPH` is non-null:
+    - `total_flow_count` = count of `DOMAIN_GRAPH.nodes` where `type == "flow"`. If `DOMAIN_GRAPH` is null, set to 0.
+    - `flowsByDomain` = Map of `domain.id` → flow Node[], built by walking `DOMAIN_GRAPH.edges` of type
+      `contains_flow`.
+    - `cross_domain_edges` = ordered list of `(source.name, target.name)` tuples from edges of type `cross_domain`,
+      using `nodesById` lookups against `DOMAIN_GRAPH.nodes`. Skip if either endpoint is missing.
 
 ### Integrity assertions (warn, do not stop)
 
@@ -485,7 +499,7 @@ If zero directives were extracted: set `CONVENTIONS_DIRECTIVES = null`.
 | 4  | `docs/agents/conventions.md`                    | only if `EXISTING_CONVENTIONS` not null | TEMPLATES.md §9                                                        |
 | 5  | `docs/agents/patterns.md`                       | always                                  | TEMPLATES.md §6                                                        |
 | 6  | `docs/agents/architecture.md`                   | always                                  | TEMPLATES.md §5                                                        |
-| 7  | `docs/agents/flow.md`                           | always                                  | TEMPLATES.md §19                                                       |
+| 7  | `docs/agents/flow.md` or `docs/agents/flows/`   | always (mode below)                     | TEMPLATES.md §19 (single) or §20+§21 (folder)                          |
 | 8  | `.claude/settings.json`                         | always (merge)                          | TEMPLATES.md §4                                                        |
 | 9  | `.gitignore`                                    | always (append)                         | —                                                                      |
 | 10 | `CLAUDE.local.md`                               | always                                  | TEMPLATES.md §3                                                        |
@@ -494,10 +508,42 @@ If zero directives were extracted: set `CONVENTIONS_DIRECTIVES = null`.
 | 13 | `.cursor/rules/agents.mdc`                      | always                                  | TEMPLATES.md §12                                                       |
 | 14 | `.github/copilot-instructions.md`               | always                                  | TEMPLATES.md §13                                                       |
 | 15 | `.codex/instructions.md`                        | always                                  | TEMPLATES.md §14                                                       |
-| 16 | `CONVENTIONS.md`                                | only if `EXISTING_CONVENTIONS` is null  | TEMPLATES.md §15                                                       |
+| 16 | `CONVENTIONS.md`                                | only if EXISTING_CONVENTIONS is null AND CONVENTIONS_ACTION != "skip" | TEMPLATES.md §22 if CONVENTIONS_ACTION=="stub"; §15 if "legacy"        |
 | 17 | `.aider.conf.yml`                               | always (merge if exists)                | TEMPLATES.md §16                                                       |
 | 18 | `.github/workflows/agent-context-freshness.yml` | only if `WITH_CI=true`                  | TEMPLATES.md §17                                                       |
 | 19 | `hooks/check-freshness.sh`                      | only if `WITH_CI=true`                  | TEMPLATES.md §18 (chmod +x)                                            |
+
+### Flow output mode (Step 7)
+
+Decide between single-file and folder mode using the indexes from Phase 2:
+
+- `total_flow_count <= 8` (or `DOMAIN_GRAPH` is null): write a single `docs/agents/flow.md` from TEMPLATES.md §19. If
+  `DOMAIN_GRAPH` is null or `total_flow_count == 0`, the template emits the "no flows extracted" stub branch.
+- `total_flow_count > 8`: write a folder `docs/agents/flows/` containing:
+    - `docs/agents/flows/index.md` (TEMPLATES.md §20)
+    - `docs/agents/flows/<domain.slug>.md` for each domain in `domains_with_flows` (TEMPLATES.md §21)
+
+Domain slug derivation (used by §20 and §21):
+
+1. Lowercase `domain.name`.
+2. Strip diacritics. Replace any run of `[^a-z0-9]+` with `-`. Trim leading/trailing `-`.
+3. Reserved word: never emit `index`. If a domain slugs to `index`, suffix with `-domain`.
+4. Collisions across domains: append `-2`, `-3`, … in domain iteration order. Record the final slug on the domain
+   object so cross-references (§21 "See also") stay consistent.
+
+### Format migration (automatic, not gated by `--force`)
+
+Before writing flow output, detect and clean up leftovers from a prior run that used the other mode:
+
+- Folder mode active and `docs/agents/flow.md` exists → recognise it as the old single-file version, delete it, then
+  write the folder. Report `↻ docs/agents/flow.md → docs/agents/flows/  (migrated)` in Phase 7.
+- Single-file mode active and `docs/agents/flows/` exists → recognise it as the old folder version, delete the
+  directory recursively, then write the new `flow.md`. Report
+  `↻ docs/agents/flows/ → docs/agents/flow.md  (migrated)` in Phase 7.
+- This migration happens regardless of `FORCE` — the previous-mode artefact is no longer a valid output and would
+  break AGENTS.md §6's link.
+- Under `DRY_RUN=true`: print `would delete: <path>` for each leftover and the new files between separators; perform
+  no actual deletions or writes.
 
 ### AGENTS.md — full specification
 
@@ -629,16 +675,24 @@ template contains the structural scaffold; derivation rules are specified there 
 - Entry points: nodes with 0 incoming `imports` edges AND >=1 outgoing edge.
 - Cross-layer deps: `imports` edges crossing layers, grouped by (source_layer → target_layer), counted.
 
-**docs/agents/flow.md** (TEMPLATES.md §19):
+**docs/agents/flow.md or docs/agents/flows/** (TEMPLATES.md §19, §20, §21):
 
-- If `DOMAIN_QUALITY` is "high" or "mixed": render Business flows section.
-    - `domains_with_flows`: domain-type nodes with >=1 outgoing `contains_flow` edge, sorted by outgoing-edge count
-      desc.
-    - For each domain: name, summary, then each flow with `domainMeta.entryPoint`, `domainMeta.entryType`, and summary (
-      if non-generic).
-    - If no domain has flows despite high/mixed quality: fall back to entry-points section.
-- Otherwise (`DOMAIN_QUALITY` is "low", "missing", or `DOMAIN_GRAPH` is null): render entry-points fallback only.
-    - Entry points: same set as architecture.md (0 incoming `imports` edges AND >=1 outgoing edge).
+flow output is strictly domain-derived. There is no entry-points fallback — `docs/agents/architecture.md` already
+covers import-graph entry points.
+
+- `DOMAIN_GRAPH` is null OR `total_flow_count == 0`: write a single `docs/agents/flow.md` with the §19 stub branch
+  ("No flows extracted from domain-graph.json. Run /understand-domain ...").
+- `1 <= total_flow_count <= 8`: write a single `docs/agents/flow.md` from §19 with one H2 per domain, one bullet per
+  flow under it. Include a `## Cross-domain` section if `cross_domain_edges` is non-empty.
+- `total_flow_count > 8`: write the folder `docs/agents/flows/`:
+    - `flows/index.md` (§20) — domain count, flow count, list of domains with link to per-domain file, cross-domain
+      edge list.
+    - `flows/<domain.slug>.md` (§21) — one file per domain in `domains_with_flows`. Each flow rendered with
+      `domainMeta.entryPoint`, `domainMeta.entryType`, and `summary` (if non-generic). "See also" section linking
+      cross-domain neighbours by slug.
+- `domains_with_flows` ordering: sort by total outgoing-edge count descending (same rule as glossary clusters).
+- Slug derivation and format migration: see "Flow output mode" and "Format migration" subsections under the Phase 5
+  write-order table above.
 
 **docs/agents/patterns.md** (TEMPLATES.md §6):
 
@@ -735,7 +789,7 @@ Gates:
   [⚠ stale warning if GRAPH_STALE]
   [✓|⚠] domain-graph.json [present (quality: <grade>) | not found]
   [✓ CONVENTIONS.md found (<N> lines) — copied to docs/agents/conventions.md]
-  [ℹ no CONVENTIONS.md — consider creating one]
+  [ℹ no CONVENTIONS.md — created starter stub | skipped per user | legacy AGENTS.md copy]
 
 Files:
   ✓/⏭ AGENTS.md                      (<N> lines)
@@ -743,7 +797,15 @@ Files:
   ✓/⏭ CLAUDE.local.md                 (3 lines)
   ✓/⏭ .claude/settings.json           [created | merged; <N> new deny entries]
   ✓/⏭ docs/agents/architecture.md      (<N> lines)
+  [single-file mode]
   ✓/⏭ docs/agents/flow.md              (<N> lines)
+  [folder mode]
+  ✓/⏭ docs/agents/flows/                (<M> files, <N> total lines)
+       ✓/⏭ flows/index.md
+       ✓/⏭ flows/<slug>.md  × <D> domains
+  [migration, if applicable]
+  ↻ docs/agents/flow.md → docs/agents/flows/  (migrated)
+  ↻ docs/agents/flows/ → docs/agents/flow.md  (migrated)
   ✓/⏭ docs/agents/patterns.md          (<N> lines)
   ✓/⏭ docs/agents/glossary.md          (<N> lines)
   [✓/⏭ docs/agents/conventions.md     (<N> lines)]
@@ -755,8 +817,10 @@ Cross-vendor:
   ✓/⏭ .cursor/rules/agents.mdc       (synced from AGENTS.md)
   ✓/⏭ .github/copilot-instructions.md (synced from AGENTS.md)
   ✓/⏭ .codex/instructions.md          (synced from AGENTS.md)
-  [✓/⏭ CONVENTIONS.md                  (created from AGENTS.md)]
-  [⏭ CONVENTIONS.md                    (preserved — existing)]
+  [CONVENTIONS_ACTION="stub"]   ✓/⏭ CONVENTIONS.md  (starter stub — edit and re-run)
+  [CONVENTIONS_ACTION="legacy"] ✓/⏭ CONVENTIONS.md  (verbatim AGENTS.md copy)
+  [CONVENTIONS_ACTION="skip"]   ⏭  CONVENTIONS.md  (user opted out)
+  [EXISTING_CONVENTIONS]        ⏭  CONVENTIONS.md  (preserved — existing)
   ✓/⏭ .aider.conf.yml                 [created | merged]
 
 CI (--with-ci):
