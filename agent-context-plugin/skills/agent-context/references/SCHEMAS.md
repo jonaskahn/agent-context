@@ -36,7 +36,7 @@ Required top-level keys for Gate A validation: `version`, `project`, `nodes`, `e
   "id": "file:app/pages/login.vue",      // string — "file:<path>" or "func:<path>:<name>"
   "type": "file" | "function",           // observed types; treat unknown types as "unknown", keep the node
   "name": "login.vue",                   // string — display name
-  "filePath": "app/pages/login.vue",     // string — POSIX path relative to repo root; always present
+  "filePath": "app/pages/login.vue",     // string — POSIX path relative to $PROJECT_ROOT; always present
   "lineRange": [62, 87],                 // [start, end] 1-indexed; ONLY present on function nodes
   "summary": "Source file `app/pages/login.vue`.",  // string — see generic-summary rules below
   "tags": ["typescript", "source", "vue"],          // string[] — use for filtering, not display

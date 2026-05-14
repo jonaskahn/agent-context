@@ -110,7 +110,7 @@ Working if: agents stop asking "where does X live?", hook denials are respected,
 - `{{stale_banner_if_any}}` = if `GRAPH_STALE=true`:
   `> ⚠ Graph generated at commit {graph_hash[:7]}; repo is at {head_hash[:7]}. Re-run /understand for current context.`
   Otherwise empty (no blank line).
-- `{{plugin_version}}` = current plugin version string (e.g. `0.0.7`).
+- `{{plugin_version}}` = current plugin version string (e.g. `0.0.8`).
 - `{{graph_hash_short}}` = `project.gitCommitHash[:7]` from knowledge graph, or `"unknown"` if absent.
 - `{{graph_analyzed_date}}` = `project.analyzedAt[:10]` (YYYY-MM-DD portion of ISO-8601 timestamp).
 - `{{commands_block}}` = one line per command key in order: install, dev, test, lint, build. Omit keys not present.
@@ -668,7 +668,8 @@ jobs:
 
       - name: Check knowledge graph freshness
         run: |
-          GRAPH_FILE="./understand-anything/knowledge-graph.json"
+          PROJECT_ROOT="${{ github.workspace }}"
+          GRAPH_FILE="$PROJECT_ROOT/.understand-anything/knowledge-graph.json"
           if [ ! -f "$GRAPH_FILE" ]; then
             echo "::warning::Knowledge graph not found — run /understand to generate it"
             exit 0
@@ -702,7 +703,8 @@ jobs:
 # agent-context freshness check — usable as pre-commit hook or standalone
 set -euo pipefail
 
-GRAPH_FILE="${1:-./understand-anything/knowledge-graph.json}"
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+GRAPH_FILE="${1:-$PROJECT_ROOT/.understand-anything/knowledge-graph.json}"
 
 if [ ! -f "$GRAPH_FILE" ]; then
   echo "agent-context: knowledge graph not found at $GRAPH_FILE" >&2

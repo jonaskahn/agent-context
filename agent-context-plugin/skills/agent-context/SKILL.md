@@ -1,8 +1,8 @@
 ---
 name: agent-context
-description: Generate evidence-driven context files (AGENTS.md, CLAUDE.md, GEMINI.md, docs/agents/, .claude/settings.json, cross-vendor configs) from Understand-Anything knowledge graphs. Use when the user runs /agent-context, asks to "bootstrap agent context", "generate AGENTS.md", "initialize Claude Code context", or "make this repo AI-agent-ready". Requires ./understand-anything/knowledge-graph.json — produced by running /understand on the target repo first.
+description: Generate evidence-driven context files (AGENTS.md, CLAUDE.md, GEMINI.md, docs/agents/, .claude/settings.json, cross-vendor configs) from Understand-Anything knowledge graphs. Use when the user runs /agent-context, asks to "bootstrap agent context", "generate AGENTS.md", "initialize Claude Code context", or "make this repo AI-agent-ready". Requires $PROJECT_ROOT/.understand-anything/knowledge-graph.json — produced by running /understand on the target repo first.
 argument-hint: [ "[path] [--force] [--dry-run] [--with-ci] [--minimal]" ]
-version: 0.0.7
+version: 0.0.8
 ---
 
 # /agent-context
@@ -67,7 +67,7 @@ All variables set during execution. Phases that set each variable are noted.
 1. Tokenise `$ARGUMENTS` on whitespace.
 2. Extract flags: `--force` → `FORCE=true`, `--dry-run` → `DRY_RUN=true`, `--with-ci` → `WITH_CI=true`,
    `--minimal` → `MINIMAL=true`. Defaults: all false.
-3. First non-flag token → target path. Resolve relative to CWD. If absent → `PROJECT_ROOT = CWD`.
+3. First non-flag token → target path. Resolve relative to CWD. If absent → `PROJECT_ROOT = CWD` (current working directory becomes `$PROJECT_ROOT`).
 4. Verify `PROJECT_ROOT` is a directory. If not → print `agent-context: <path> is not a directory.` → stop.
 5. Run `git -C <PROJECT_ROOT> rev-parse --git-dir`. Success → `IS_GIT_REPO=true`. Failure → `IS_GIT_REPO=false` (warn,
    continue).
@@ -82,25 +82,25 @@ Run gates A → B → C → D in order. Gate A is hard (stop on failure). Gates 
 
 ### Gate A — Knowledge graph (HARD)
 
-Check `<PROJECT_ROOT>/./understand-anything/knowledge-graph.json`.
+Check `$PROJECT_ROOT/.understand-anything/knowledge-graph.json`.
 
 **Missing** — print verbatim and stop:
 
 ```
 agent-context: knowledge graph not found.
 
-This plugin needs ./understand-anything/knowledge-graph.json in the target
+This plugin needs $PROJECT_ROOT/.understand-anything/knowledge-graph.json in the target
 repo to generate useful context files. If you have not set up
 Understand-Anything yet, run:
 
-  /plugin marketplace add Lum1104/Understand-Anything
+  /plugin marketplace add Lum1104/.understand-anything
   /plugin install understand-anything
 
 Then, in the repo you want to generate context for, run:
 
   /understand
 
-That will produce ./understand-anything/knowledge-graph.json. Re-run
+That will produce $PROJECT_ROOT/.understand-anything/knowledge-graph.json. Re-run
 /agent-context once it is present.
 ```
 
@@ -109,7 +109,7 @@ That will produce ./understand-anything/knowledge-graph.json. Re-run
 ```
 agent-context: knowledge graph is not valid JSON.
 
-./understand-anything/knowledge-graph.json exists but cannot be parsed.
+$PROJECT_ROOT/.understand-anything/knowledge-graph.json exists but cannot be parsed.
 This usually means /understand was interrupted. Re-run:
 
   /understand
@@ -149,7 +149,7 @@ Also check `project.analyzedAt`: if older than 14 days from now, print a stalene
 
 ### Gate C — Domain graph (SOFT)
 
-Check `<PROJECT_ROOT>/./understand-anything/domain-graph.json`.
+Check `$PROJECT_ROOT/.understand-anything/domain-graph.json`.
 
 **Missing** — set `DOMAIN_QUALITY="missing"`, `DOMAIN_GRAPH=null`. Print:
 
@@ -212,10 +212,10 @@ find <PROJECT_ROOT> -iname "CONVENTIONS.md" -not -path "*/node_modules/*" -not -
 Searched the repository — CONVENTIONS.md was found at:
   - <path>
 
-Expected location: root folder or docs/ folder
+Expected location: $PROJECT_ROOT or docs/ folder
 
 If this is your conventions file, please either:
-1. Move it to the root folder (recommended)
+1. Move it to $PROJECT_ROOT (recommended)
 2. Move it to the docs/ folder
 3. Provide the exact location in your project context
 
@@ -230,14 +230,14 @@ Set `EXISTING_CONVENTIONS=null`. Continue to Step D.4.
 ⚠️  CONVENTIONS.md not found
 
 Searched the repository — no CONVENTIONS.md file exists in:
-  - Root folder: ❌
+  - $PROJECT_ROOT: ❌
   - docs/ folder: ❌
   - Anywhere else in the project: ❌
 
-According to your README and SKILL.md documentation, the agent-context plugin expects a CONVENTIONS.md file in the project root (case-insensitive lookup). This file should contain team coding standards and directives.
+According to your README and SKILL.md documentation, the agent-context plugin expects a CONVENTIONS.md file in $PROJECT_ROOT (case-insensitive lookup). This file should contain team coding standards and directives.
 
 If you have a conventions file:
-  • Move it to the root folder, or
+  • Move it to $PROJECT_ROOT, or
   • Move it to docs/, or
   • Specify its location below
 
