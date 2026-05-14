@@ -110,7 +110,7 @@ Working if: agents stop asking "where does X live?", hook denials are respected,
 - `{{stale_banner_if_any}}` = if `GRAPH_STALE=true`:
   `> ⚠ Graph generated at commit {graph_hash[:7]}; repo is at {head_hash[:7]}. Re-run /understand for current context.`
   Otherwise empty (no blank line).
-- `{{plugin_version}}` = current plugin version string (e.g. `0.0.8`).
+- `{{plugin_version}}` = current plugin version string (e.g. `0.0.9`).
 - `{{graph_hash_short}}` = `project.gitCommitHash[:7]` from knowledge graph, or `"unknown"` if absent.
 - `{{graph_analyzed_date}}` = `project.analyzedAt[:10]` (YYYY-MM-DD portion of ISO-8601 timestamp).
 - `{{commands_block}}` = one line per command key in order: install, dev, test, lint, build. Omit keys not present.

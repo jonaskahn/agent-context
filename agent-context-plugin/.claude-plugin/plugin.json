@@ -1,6 +1,6 @@
 {
   "name": "agent-context",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Evidence-driven context engineering for AI agents. Reads Understand-Anything graphs and emits AGENTS.md, GEMINI.md, docs/agents/, scoped .claude/rules/, and cross-vendor configs (Cursor per-layer, Copilot, Codex, Windsurf, Aider). No templates, no placeholders.",
   "author": {
     "name": "jonaskahn"

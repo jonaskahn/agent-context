@@ -2,7 +2,7 @@
 name: agent-context
 description: Generate evidence-driven context files (AGENTS.md, CLAUDE.md, GEMINI.md, docs/agents/, .claude/settings.json, cross-vendor configs) from Understand-Anything knowledge graphs. Use when the user runs /agent-context, asks to "bootstrap agent context", "generate AGENTS.md", "initialize Claude Code context", or "make this repo AI-agent-ready". Requires $PROJECT_ROOT/.understand-anything/knowledge-graph.json — produced by running /understand on the target repo first.
 argument-hint: [ "[path] [--force] [--dry-run] [--with-ci] [--minimal]" ]
-version: 0.0.8
+version: 0.0.9
 ---
 
 # /agent-context
@@ -69,7 +69,7 @@ All variables set during execution. Phases that set each variable are noted.
    `--minimal` → `MINIMAL=true`. Defaults: all false.
 3. First non-flag token → target path. Resolve relative to CWD. If absent → `PROJECT_ROOT = CWD` (current working directory becomes `$PROJECT_ROOT`).
 4. Verify `PROJECT_ROOT` is a directory. If not → print `agent-context: <path> is not a directory.` → stop.
-5. Run `git -C <PROJECT_ROOT> rev-parse --git-dir`. Success → `IS_GIT_REPO=true`. Failure → `IS_GIT_REPO=false` (warn,
+5. Run `git -C $PROJECT_ROOT rev-parse --git-dir`. Success → `IS_GIT_REPO=true`. Failure → `IS_GIT_REPO=false` (warn,
    continue).
 6. If `MINIMAL=true` and `WITH_CI=true`: print
    `agent-context: --minimal and --with-ci are mutually exclusive. --with-ci ignored.` Set `WITH_CI=false`.
@@ -93,7 +93,7 @@ This plugin needs $PROJECT_ROOT/.understand-anything/knowledge-graph.json in the
 repo to generate useful context files. If you have not set up
 Understand-Anything yet, run:
 
-  /plugin marketplace add Lum1104/.understand-anything
+  /plugin marketplace add Lum1104/understand-anything
   /plugin install understand-anything
 
 Then, in the repo you want to generate context for, run:
@@ -177,11 +177,11 @@ Search for `CONVENTIONS.md` (case-insensitive) in expected locations and report 
 
 #### Step D.1: Grep search in standard locations
 
-Run `grep -ri "^" <PROJECT_ROOT>/CONVENTIONS.md <PROJECT_ROOT>/docs/CONVENTIONS.md 2>/dev/null` to find files.
+Run `grep -ri "^" $PROJECT_ROOT/CONVENTIONS.md $PROJECT_ROOT/docs/CONVENTIONS.md 2>/dev/null` to find files.
 
 Check in this order:
-1. `<PROJECT_ROOT>/CONVENTIONS.md` (case-insensitive)
-2. `<PROJECT_ROOT>/docs/CONVENTIONS.md` (case-insensitive)
+1. `$PROJECT_ROOT/CONVENTIONS.md` (case-insensitive)
+2. `$PROJECT_ROOT/docs/CONVENTIONS.md` (case-insensitive)
 
 #### Step D.2: File found in expected location
 
@@ -201,7 +201,7 @@ They are NOT inlined into AGENTS.md — the 100-line cap forbids it.
 
 If not found in standard locations, run:
 ```bash
-find <PROJECT_ROOT> -iname "CONVENTIONS.md" -not -path "*/node_modules/*" -not -path "*/.git/*"
+find $PROJECT_ROOT -iname "CONVENTIONS.md" -not -path "*/node_modules/*" -not -path "*/.git/*"
 ```
 
 **Found elsewhere** — print diagnostic:
@@ -751,7 +751,7 @@ This comment is stripped by Claude when injected into context (per Anthropic mem
 
 - Tagline: `**Layers are disjoint. Don't blur them.**`
 - Bullets: one per layer sorted by node count desc, max 6. Format: `- {layer.name} ({nodeCount}) — {layer.description}`
-- If >6 layers: trailing bullet `- Other layers: {comma-separated remaining names}.`
+- If > 6 layers: trailing bullet `- Other layers: {comma-separated remaining names}.`
 - If 0 layers: `- No layers detected.`
 - Test: `The test: every file under {primary_source_dir}/ maps to exactly one layer above.`
 
