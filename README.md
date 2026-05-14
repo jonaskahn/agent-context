@@ -7,7 +7,7 @@
 **Give your AI agent a real map of your codebase — not a polite fiction.**
 
 <sub>
-Reads <a href="https://github.com/Lum1104/.understand-anything">Understand-Anything</a> knowledge graphs → emits <code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>docs/agents/</code>.<br>
+Reads <a href="https://github.com/Lum1104/understand-anything">Understand-Anything</a> knowledge graphs → emits <code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>docs/agents/</code>.<br>
 Every line traces back to a graph node or edge. Nothing is invented.
 </sub>
 
