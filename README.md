@@ -7,7 +7,7 @@
 **Give your AI agent a real map of your codebase — not a polite fiction.**
 
 <sub>
-Reads <a href="https://github.com/Lum1104/Understand-Anything">Understand-Anything</a> knowledge graphs → emits <code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>docs/agents/</code>.<br>
+Reads <a href="https://github.com/Lum1104/.understand-anything">Understand-Anything</a> knowledge graphs → emits <code>AGENTS.md</code>, <code>CLAUDE.md</code>, <code>docs/agents/</code>.<br>
 Every line traces back to a graph node or edge. Nothing is invented.
 </sub>
 
@@ -105,7 +105,7 @@ With `--with-ci`, two additional files are generated:
 agent-context does not analyse code. Understand-Anything does.
 
 ```shell
-/plugin marketplace add Lum1104/Understand-Anything
+/plugin marketplace add Lum1104/.understand-anything
 /plugin install understand-anything
 ```
 
@@ -115,7 +115,7 @@ Then, inside the repo you want to generate context for:
 /understand
 ```
 
-This produces `./understand-anything/knowledge-graph.json`. For a populated glossary and business flow map, also run:
+This produces `./.understand-anything/knowledge-graph.json`. For a populated glossary and business flow map, also run:
 
 ```shell
 /understand-domain
